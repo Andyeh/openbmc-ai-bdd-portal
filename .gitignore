@@ -30,8 +30,10 @@ env/
 pip-selfcheck.json
 
 # Environment Variables
+.env
 .env.local
 .env.*.local
+!.env.example
 
 # Testing and Reports
 tests/bdd/reports/
