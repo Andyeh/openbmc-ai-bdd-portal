@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+pip-selfcheck.json
+
+# Environment Variables
+.env.local
+.env.*.local
+
+# Testing and Reports
+tests/bdd/reports/
+allure-report/
+allure-results/
+.pytest_cache/
+.htmlcov/
+htmlcov/
+.tox/
+.nosexy/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db

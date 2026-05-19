@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────
+# OpenBMC AI-BDD Portal — requirements.txt
+# ─────────────────────────────────────────────
+
+# ── Backend (FastAPI) ──────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9      # form / file upload
+pydantic==2.7.1
+pydantic-settings==2.2.1     # .env config
+
+# ── Async & subprocess helpers ─────────────────
+anyio==4.3.0
+aiofiles==23.2.1
+
+# ── Jinja2 templating (SSR fallback) ──────────
+jinja2==3.1.4
+
+# ── WebSocket (real-time log streaming) ────────
+websockets==12.0
+
+# ── Robot Framework integration ───────────────
+robotframework==7.0
+robotframework-requests==0.9.5
+
+# ── BDD Testing (behave) ──────────────────────
+behave==1.2.6
+allure-behave==2.13.5
+
+# ── HTTP client (for BDD steps) ───────────────
+httpx==0.27.0
+requests==2.32.2
+
+# ── Utilities ─────────────────────────────────
+python-dotenv==1.0.1
+rich==13.7.1                 # pretty console output
