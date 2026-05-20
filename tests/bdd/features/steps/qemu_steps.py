@@ -67,7 +67,7 @@ def step_qemu_is_running(context):
             "machine": "ast2700a1-evb",
             "memory": "1G",
             "image": images[0],
-            "dry_run": True,
+            "dry_run": False,
         }).json()
         assert result.get("ok"), f"Could not start mock QEMU: {result}"
 
@@ -78,17 +78,13 @@ def step_qemu_is_running(context):
 def step_click_preset(context, preset_name):
     """Map preset button label to preset ID and fetch from API."""
     presets = _get(context, "/api/qemu/presets").json().get("presets", [])
-    label_map = {p["label"]: p for p in presets}
-    # Try partial match
-    matched = next((p for p in presets if preset_name in p.get("label", "")), None)
+    clean_name = preset_name.replace(" Preset", "").strip()
+    # Try partial match or exact ID match
+    matched = next((p for p in presets if clean_name in p.get("label", "") or clean_name == p.get("id")), None)
     assert matched, f"Preset '{preset_name}' not found. Available: {[p['label'] for p in presets]}"
     context.selected_preset = matched
 
 
-@when('the user sends a POST request to "{path}" with body')
-def step_post_with_body(context, path):
-    body = json.loads(context.text)
-    _post(context, path, body)
 
 
 # ── Then ──────────────────────────────────────────────────────────────────────
@@ -127,24 +123,8 @@ def step_preset_extra_args(context, value):
     assert value in extra, f"Expected extra_args to contain '{value}', got: '{extra}'"
 
 
-@then('the response body should contain a "command" field')
-def step_response_has_command(context):
-    data = context.response.json()
-    assert "command" in data, f"'command' missing from: {data}"
-    context.assembled_command = data["command"]
 
 
-@then('the command should include "{fragment}"')
-def step_command_includes(context, fragment):
-    cmd = getattr(context, "assembled_command", context.response.json().get("command", ""))
-    assert fragment in cmd, f"Expected '{fragment}' in command:\n  {cmd}"
-
-
-@then('the response body should contain "ok" equal to {value}')
-def step_response_ok(context, value):
-    expected = value.strip().lower() == "true"
-    data = context.response.json()
-    assert data.get("ok") == expected, f"Expected ok={expected}, got: {data}"
 
 
 @then('the response body should contain "dry_run" equal to {value}')
@@ -193,3 +173,8 @@ def step_qemu_not_running(context):
             return
         time.sleep(0.5)
     assert False, "QEMU is still running after stop"
+
+
+@when('the client connects to the WebSocket endpoint "/api/qemu/ws/logs"')
+def step_connect_websocket(context):
+    context.ws_path = "/api/qemu/ws/logs"

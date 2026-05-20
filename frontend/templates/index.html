@@ -22,6 +22,26 @@
         <span class="brand-icon">⚡</span>
         <span class="brand-name">OpenBMC <span class="accent">AI-BDD</span> Portal</span>
       </div>
+
+      <!-- Page tabs -->
+      <div class="page-tabs" role="tablist" aria-label="主要頁面">
+        <button class="page-tab active" id="ptab-qemu"
+                role="tab" aria-selected="true" aria-controls="page-qemu"
+                onclick="showPage('qemu')">
+          🖥 QEMU
+        </button>
+        <button class="page-tab" id="ptab-robot"
+                role="tab" aria-selected="false" aria-controls="page-robot"
+                onclick="showPage('robot')">
+          🤖 Robot 測試
+        </button>
+        <button class="page-tab" id="ptab-reports"
+                role="tab" aria-selected="false" aria-controls="page-reports"
+                onclick="showPage('reports')">
+          📊 報告
+        </button>
+      </div>
+
       <div class="nav-status-bar">
         <div class="status-pill" id="backend-status">
           <span class="dot dot--connecting"></span>
@@ -35,233 +55,391 @@
     </div>
   </nav>
 
-  <!-- ── Main Layout ───────────────────────────────────────────── -->
-  <main class="dashboard">
+  <!-- ── Pages ────────────────────────────────────────────────── -->
+  <main class="page-container">
 
-    <!-- ╔══════════════════════════════════╗ -->
-    <!-- ║  Panel 1 — QEMU 操作區           ║ -->
-    <!-- ╚══════════════════════════════════╝ -->
-    <section id="qemu-panel" class="panel" aria-labelledby="qemu-heading">
-      <div class="panel-header">
-        <h2 id="qemu-heading" class="panel-title">
-          <span class="panel-icon">🖥</span> QEMU 操作區
-        </h2>
-        <div class="panel-badge" id="qemu-status">
-          <span class="dot dot--stopped"></span>
-          <span id="qemu-status-text">已停止</span>
-        </div>
-      </div>
-
-      <div class="panel-body">
-
-        <!-- ── Preset buttons ──────────────────────────────────── -->
-        <div class="form-group">
-          <label>快速套用 Preset</label>
-          <div id="preset-btn-row" class="btn-row">
-            <span class="text-muted" style="font-size:0.8rem">⏳ 載入中...</span>
+    <!-- ╔══════════════════════════════════════════════════════╗ -->
+    <!-- ║  Page 1 — QEMU 操作區                               ║ -->
+    <!-- ╚══════════════════════════════════════════════════════╝ -->
+    <div id="page-qemu" class="page page--active" role="tabpanel" aria-labelledby="ptab-qemu">
+      <section id="qemu-panel" class="panel panel--full" aria-labelledby="qemu-heading">
+        <div class="panel-header">
+          <h2 id="qemu-heading" class="panel-title">
+            <span class="panel-icon">🖥</span> QEMU 操作區
+          </h2>
+          <div class="panel-badge" id="qemu-status">
+            <span class="dot dot--stopped"></span>
+            <span id="qemu-status-text">已停止</span>
           </div>
         </div>
 
-        <!-- ── QEMU Binary ────────────────────────────────────── -->
-        <div class="form-group">
-          <label for="qemu-binary">QEMU Binary Path</label>
-          <input id="qemu-binary" type="text" class="text-input font-mono"
-                 placeholder="/path/to/qemu-system-aarch64" />
-        </div>
+        <div class="panel-body panel-body--two-col">
 
-        <!-- ── Machine + Memory (row) ─────────────────────────── -->
-        <div class="form-row">
-          <div class="form-group" style="flex:2">
-            <label for="qemu-machine">-machine</label>
-            <input id="qemu-machine" type="text" class="text-input"
-                   placeholder="ast2700a1-evb" />
-          </div>
-          <div class="form-group" style="flex:1">
-            <label for="qemu-memory">-m (Memory)</label>
-            <input id="qemu-memory" type="text" class="text-input"
-                   placeholder="1G" value="1G" />
-          </div>
-        </div>
+          <!-- ── Left: Controls ──────────────────────────────── -->
+          <div class="qemu-controls">
 
-        <!-- ── Firmware Image ─────────────────────────────────── -->
-        <div class="form-group">
-          <label for="qemu-image">Firmware Image (-drive file=…)</label>
-          <select id="qemu-image" class="select-input">
-            <option value="">-- loading... --</option>
-          </select>
-        </div>
-
-        <!-- ── Extra args ─────────────────────────────────────── -->
-        <div class="form-group">
-          <label for="qemu-extra-args">Extra QEMU Args</label>
-          <input id="qemu-extra-args" type="text" class="text-input font-mono"
-                 placeholder="-serial mon:stdio -serial null -display none" />
-        </div>
-
-        <!-- ── Options row ────────────────────────────────────── -->
-        <div class="options-row">
-          <label class="toggle-label">
-            <input type="checkbox" id="qemu-use-nic" checked
-                   onchange="toggleNicPorts(this.checked)" />
-            <span>附加 NIC (port forwarding)</span>
-          </label>
-
-          <!-- Port forwarding inputs — shown only when NIC is checked -->
-          <div id="nic-port-group" class="nic-port-group">
-            <div class="port-row">
-              <div class="port-field">
-                <label for="port-ssh" class="port-label">SSH host port
-                  <span class="hint">→ guest :22</span></label>
-                <input id="port-ssh" type="number" class="text-input port-input"
-                       value="2222" min="1024" max="65535"
-                       oninput="debouncePreview()" />
-              </div>
-              <div class="port-field">
-                <label for="port-https" class="port-label">HTTPS host port
-                  <span class="hint">→ guest :443</span></label>
-                <input id="port-https" type="number" class="text-input port-input"
-                       value="2443" min="1024" max="65535"
-                       oninput="debouncePreview()" />
-              </div>
-              <div class="port-field">
-                <label for="port-ipmi" class="port-label">IPMI/UDP host port
-                  <span class="hint">→ guest :623</span></label>
-                <input id="port-ipmi" type="number" class="text-input port-input"
-                       value="2623" min="1024" max="65535"
-                       oninput="debouncePreview()" />
+            <!-- Preset buttons -->
+            <div class="form-group">
+              <label>快速套用 Preset</label>
+              <div id="preset-btn-row" class="btn-row">
+                <span class="text-muted" style="font-size:0.8rem">⏳ 載入中...</span>
               </div>
             </div>
-          </div>
 
-          <label class="toggle-label" style="margin-top:4px">
-            <input type="checkbox" id="qemu-dry-run" />
-            <span>Dry-run（僅預覽指令，不實際執行）</span>
-          </label>
+            <!-- QEMU Binary -->
+            <div class="form-group">
+              <label for="qemu-binary">QEMU Binary Path</label>
+              <input id="qemu-binary" type="text" class="text-input font-mono"
+                     placeholder="/path/to/qemu-system-aarch64" />
+            </div>
 
-          <!-- Docker mode -->
-          <label class="toggle-label" style="margin-top:4px">
-            <input type="checkbox" id="qemu-use-docker" checked
-                   onchange="toggleDockerInput(this.checked); debouncePreview()" />
-            <span>🐳 在 Docker 容器內執行 QEMU</span>
-          </label>
-          <div id="docker-image-group" class="nic-port-group" style="padding-left:1.4rem">
-            <div class="form-group" style="margin-top:4px">
-              <label for="docker-image" class="port-label">Docker Image
-                <span class="hint">必須包含 QEMU binary 及相關函式庫</span>
+            <!-- Machine + Memory -->
+            <div class="form-row">
+              <div class="form-group" style="flex:2">
+                <label for="qemu-machine">-machine</label>
+                <input id="qemu-machine" type="text" class="text-input"
+                       placeholder="ast2700a1-evb" />
+              </div>
+              <div class="form-group" style="flex:1">
+                <label for="qemu-memory">-m (Memory)</label>
+                <input id="qemu-memory" type="text" class="text-input"
+                       placeholder="1G" value="1G" />
+              </div>
+            </div>
+
+            <!-- Firmware Image -->
+            <div class="form-group">
+              <label for="qemu-image">Firmware Image (-drive file=…)</label>
+              <select id="qemu-image" class="select-input">
+                <option value="">-- loading... --</option>
+              </select>
+            </div>
+
+            <!-- Extra args -->
+            <div class="form-group">
+              <label for="qemu-extra-args">Extra QEMU Args</label>
+              <input id="qemu-extra-args" type="text" class="text-input font-mono"
+                     placeholder="-serial mon:stdio -serial null -display none" />
+            </div>
+
+            <!-- Options -->
+            <div class="options-row">
+              <label class="toggle-label">
+                <input type="checkbox" id="qemu-use-nic" checked
+                       onchange="toggleNicPorts(this.checked)" />
+                <span>附加 NIC (port forwarding)</span>
               </label>
-              <input id="docker-image" type="text" class="text-input font-mono"
-                     value="crops/poky:ubuntu-22.04"
-                     oninput="debouncePreview()" />
+
+              <div id="nic-port-group" class="nic-port-group">
+                <div class="port-row">
+                  <div class="port-field">
+                    <label for="port-ssh" class="port-label">SSH host port
+                      <span class="hint">→ guest :22</span></label>
+                    <input id="port-ssh" type="number" class="text-input port-input"
+                           value="2222" min="1024" max="65535"
+                           oninput="debouncePreview()" />
+                  </div>
+                  <div class="port-field">
+                    <label for="port-https" class="port-label">HTTPS host port
+                      <span class="hint">→ guest :443</span></label>
+                    <input id="port-https" type="number" class="text-input port-input"
+                           value="2443" min="1024" max="65535"
+                           oninput="debouncePreview()" />
+                  </div>
+                  <div class="port-field">
+                    <label for="port-ipmi" class="port-label">IPMI/UDP host port
+                      <span class="hint">→ guest :623</span></label>
+                    <input id="port-ipmi" type="number" class="text-input port-input"
+                           value="2623" min="1024" max="65535"
+                           oninput="debouncePreview()" />
+                  </div>
+                </div>
+              </div>
+
+              <label class="toggle-label" style="margin-top:4px">
+                <input type="checkbox" id="qemu-dry-run" />
+                <span>Dry-run（僅預覽指令，不實際執行）</span>
+              </label>
+
+              <label class="toggle-label" style="margin-top:4px">
+                <input type="checkbox" id="qemu-use-docker" checked
+                       onchange="toggleDockerInput(this.checked); debouncePreview()" />
+                <span>🐳 在 Docker 容器內執行 QEMU</span>
+              </label>
+              <div id="docker-image-group" class="nic-port-group" style="padding-left:1.4rem">
+                <div class="form-group" style="margin-top:4px">
+                  <label for="docker-image" class="port-label">Docker Image
+                    <span class="hint">必須包含 QEMU binary 及相關函式庫</span>
+                  </label>
+                  <input id="docker-image" type="text" class="text-input font-mono"
+                         value="crops/poky:ubuntu-22.04"
+                         oninput="debouncePreview()" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Command preview -->
+            <div class="form-group">
+              <div class="log-console-header" style="border-radius:6px 6px 0 0">
+                <span>🔍 Assembled Command Preview</span>
+                <button class="btn btn--ghost btn--xs" onclick="previewCommand()">Preview</button>
+              </div>
+              <pre id="qemu-cmd-preview" class="log-console" style="height:72px;color:#f6ad55"
+                   aria-label="QEMU command preview"># Press Preview or apply a preset to see the assembled command</pre>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="btn-row">
+              <button id="btn-start-qemu" class="btn btn--success" onclick="launchQemu()">
+                ▶ Launch QEMU
+              </button>
+              <button id="btn-stop-qemu" class="btn btn--danger" onclick="stopQemu()" disabled>
+                ■ Stop QEMU
+              </button>
+              <button class="btn btn--ghost" onclick="refreshQemuImages()">
+                ↻ Images
+              </button>
+            </div>
+
+          </div><!-- /qemu-controls -->
+
+          <!-- ── Right: Serial Console ───────────────────────── -->
+          <div class="qemu-console-wrap">
+            <div class="log-console-wrap" style="height:100%">
+              <div class="log-console-header">
+                <span>📡 Serial Console Log</span>
+                <div style="display:flex;gap:6px">
+                  <span id="ws-status-badge" class="ws-badge ws-badge--off">WS OFF</span>
+                  <button class="btn btn--ghost btn--xs" onclick="clearLog()">Clear</button>
+                </div>
+              </div>
+              <div id="qemu-terminal" class="log-console qemu-terminal-full"
+                   aria-label="QEMU serial console log"></div>
             </div>
           </div>
-        </div>
+
+        </div><!-- /panel-body--two-col -->
+      </section>
+    </div><!-- /page-qemu -->
 
 
-        <!-- ── Command preview ────────────────────────────────── -->
-        <div class="form-group">
-          <div class="log-console-header" style="border-radius:6px 6px 0 0">
-            <span>🔍 Assembled Command Preview</span>
-            <button class="btn btn--ghost btn--xs" onclick="previewCommand()">Preview</button>
+    <!-- ╔══════════════════════════════════════════════════════╗ -->
+    <!-- ║  Page 2 — Robot 測試                                ║ -->
+    <!-- ╚══════════════════════════════════════════════════════╝ -->
+    <div id="page-robot" class="page" role="tabpanel" aria-labelledby="ptab-robot">
+      <section id="robot-panel" class="panel panel--full" aria-labelledby="robot-heading">
+        <div class="panel-header">
+          <h2 id="robot-heading" class="panel-title">
+            <span class="panel-icon">🤖</span> Robot Framework 測試中心
+          </h2>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="panel-badge panel-badge--info">
+              已選 <span id="selected-count-badge">0</span> 個測試
+            </span>
+            <span id="robot-ws-badge" class="ws-badge ws-badge--off">WS OFF</span>
           </div>
-          <pre id="qemu-cmd-preview" class="log-console" style="height:72px;color:#f6ad55"
-               aria-label="QEMU command preview"># Press Preview or apply a preset to see the assembled command</pre>
         </div>
 
-        <!-- ── Action buttons ─────────────────────────────────── -->
-        <div class="btn-row">
-          <button id="btn-start-qemu" class="btn btn--success" onclick="launchQemu()">
-            ▶ Launch QEMU
-          </button>
-          <button id="btn-stop-qemu" class="btn btn--danger" onclick="stopQemu()" disabled>
-            ■ Stop QEMU
-          </button>
-          <button class="btn btn--ghost" onclick="refreshQemuImages()">
-            ↻ Images
-          </button>
-        </div>
+        <div class="panel-body">
 
-        <!-- ── Serial Console Log ─────────────────────────────── -->
-        <div class="log-console-wrap">
-          <div class="log-console-header">
-            <span>📡 Serial Console Log</span>
-            <div style="display:flex;gap:6px">
-              <span id="ws-status-badge" class="ws-badge ws-badge--off">WS OFF</span>
-              <button class="btn btn--ghost btn--xs" onclick="clearLog()">Clear</button>
+          <!-- ── Main Robot Tabs ──────────────────────────────── -->
+          <div class="tab-pills" role="tablist" aria-label="Robot panel sections">
+            <div class="tab-pill active" id="tab-ci"     role="tab" onclick="switchRobotTab('ci')">🚀 CI 預設套件</div>
+            <div class="tab-pill"        id="tab-browse" role="tab" onclick="switchRobotTab('browse')">🔬 瀏覽測試</div>
+            <div class="tab-pill"        id="tab-vars"   role="tab" onclick="switchRobotTab('vars')">⚙ 執行參數</div>
+            <div class="tab-pill"        id="tab-log"    role="tab" onclick="switchRobotTab('log')">📡 Live Log</div>
+          </div>
+
+          <!-- ── Section: CI Presets ─────────────────────────── -->
+          <div id="robot-section-ci" class="collapsible-section">
+            <div class="ci-section-header">
+              <p class="section-desc">
+                從預定義的 CI 套件中快速選擇，或組合多個套件一起執行。
+                點擊卡片上的「選取」按鈕將對應測試項目加入執行清單。
+              </p>
+            </div>
+            <div id="ci-cards-grid" class="ci-cards-grid">
+              <div class="ci-card-loading">⏳ 載入 CI 套件中…</div>
+            </div>
+
+            <!-- Selected tests summary for CI mode -->
+            <div id="ci-selection-bar" class="selection-bar hidden" aria-live="polite">
+              <span>
+                已選擇 <span id="ci-selected-count" class="selection-count">0</span> 個測試標籤
+                （將用 <code>--include</code> 模式執行）
+              </span>
+              <span class="selection-clear" onclick="clearCiSelection()" title="Clear selection">✕ 清除</span>
+            </div>
+
+            <!-- CI Action buttons -->
+            <div class="btn-row" style="margin-top:12px">
+              <button id="btn-run-ci" class="btn btn--primary" onclick="runCiSync()">
+                ▶ Run (同步)
+              </button>
+              <button id="btn-stream-ci" class="btn btn--success" onclick="runCiStream()">
+                📡 Stream Run (即時)
+              </button>
             </div>
           </div>
-          <div id="qemu-terminal" class="log-console"
-               aria-label="QEMU serial console log"></div>
+
+          <!-- ── Section: Browse Tests ───────────────────────── -->
+          <div id="robot-section-browse" class="collapsible-section collapsed">
+
+            <!-- Category tabs -->
+            <div class="form-group">
+              <div class="tree-toolbar">
+                <input id="browse-search" type="text" class="tree-search"
+                       placeholder="🔍 搜尋測試名稱或描述…"
+                       oninput="filterBrowse(this.value)" />
+                <button class="btn btn--ghost btn--xs" onclick="loadCategorized()" title="Refresh">↻</button>
+              </div>
+            </div>
+
+            <!-- Category chips -->
+            <div id="browse-category-chips" class="category-chips" aria-label="按類別篩選"></div>
+
+            <!-- Selection bar -->
+            <div id="browse-selection-bar" class="selection-bar hidden" aria-live="polite">
+              <span>
+                已選擇 <span id="browse-selected-count" class="selection-count">0</span> 個腳本
+              </span>
+              <span class="selection-clear" onclick="clearBrowseSelections()">✕ 清除</span>
+            </div>
+
+            <!-- Test cards -->
+            <div id="browse-test-list" class="test-card-list" role="list"
+                 aria-label="Test cases">
+              <div class="tree-empty">⏳ 載入中…</div>
+            </div>
+
+            <!-- Browse Action buttons -->
+            <div class="btn-row" style="margin-top:12px">
+              <button id="btn-run-browse" class="btn btn--primary" onclick="runBrowseSync()">
+                ▶ Run (同步)
+              </button>
+              <button id="btn-stream-browse" class="btn btn--success" onclick="runBrowseStream()">
+                📡 Stream Run (即時)
+              </button>
+            </div>
+          </div>
+
+          <!-- ── Section: Variables ──────────────────────────── -->
+          <div id="robot-section-vars" class="collapsible-section collapsed">
+            <div class="form-group">
+              <label>Robot 執行參數
+                <span class="hint">— 輸入後按「帶入 QEMU 預設值」快速填入常用設定</span>
+              </label>
+
+              <div class="vars-grid">
+                <div class="var-field">
+                  <label class="var-label" for="var-host">OPENBMC_HOST</label>
+                  <input id="var-host" type="text" class="var-input"
+                         placeholder="192.168.7.2" autocomplete="off" />
+                </div>
+                <div class="var-field">
+                  <label class="var-label" for="var-user">OPENBMC_USERNAME</label>
+                  <input id="var-user" type="text" class="var-input"
+                         placeholder="root" autocomplete="off" />
+                </div>
+                <div class="var-field">
+                  <label class="var-label" for="var-pass">OPENBMC_PASSWORD</label>
+                  <input id="var-pass" type="password" class="var-input var-password"
+                         placeholder="••••••••" autocomplete="current-password" />
+                </div>
+                <div class="var-field">
+                  <label class="var-label" for="var-loglevel">LOG LEVEL</label>
+                  <select id="var-loglevel" class="var-input select-input"
+                          style="background-image:none;padding-right:8px">
+                    <option value="INFO" selected>INFO</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="TRACE">TRACE</option>
+                    <option value="WARN">WARN</option>
+                  </select>
+                </div>
+                <div class="var-field vars-grid-full">
+                  <label class="var-label" for="var-extra">EXTRA VARS
+                    <span class="hint" style="text-transform:none">
+                      (KEY:value, one per line)
+                    </span>
+                  </label>
+                  <textarea id="var-extra" class="var-input" rows="3"
+                            placeholder="HTTPS_PORT:2443&#10;SSH_PORT:2222"></textarea>
+                </div>
+              </div>
+
+              <div class="btn-row" style="margin-top:4px">
+                <button class="btn btn--preset btn--xs" onclick="fillDefaultVars()">⚡ 帶入 QEMU 預設值</button>
+                <button class="btn btn--ghost btn--xs" onclick="clearVars()">✕ 清空</button>
+              </div>
+            </div>
+
+            <label class="toggle-label">
+              <input type="checkbox" id="robot-dry-run" />
+              <span>Dry-run（僅預覽指令，不實際執行）</span>
+            </label>
+
+            <div id="robot-cmd-preview-wrap" class="form-group" style="display:none">
+              <div class="log-console-header" style="border-radius:6px 6px 0 0">
+                <span>🔍 Assembled Robot Command</span>
+              </div>
+              <pre id="robot-cmd-preview" class="log-console"
+                   style="height:60px;color:#f6ad55;font-size:0.7rem"
+                   aria-label="Robot command preview"># Press Run to preview the command</pre>
+            </div>
+          </div>
+
+          <!-- ── Section: Live Log ────────────────────────────── -->
+          <div id="robot-section-log" class="collapsible-section collapsed">
+            <div class="robot-log-wrap">
+              <div class="log-console-header">
+                <span>📡 Robot Live Log</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <span id="robot-run-id-badge" class="run-id-badge" hidden>
+                    🔑 <span id="robot-run-id-text"></span>
+                  </span>
+                  <button class="btn btn--ghost btn--xs" onclick="clearRobotLog()">Clear</button>
+                </div>
+              </div>
+              <div id="robot-progress-wrap" class="progress-wrap hidden">
+                <div id="robot-progress-bar" class="progress-bar" style="width:0%"></div>
+              </div>
+              <div id="robot-log-console" aria-label="Robot Framework live log output"
+                   aria-live="polite">
+                <span class="log-info"># 選擇腳本並按 ▶ Stream Run 開始即時輸出…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Execution status banner ─────────────────────── -->
+          <div id="robot-run-status" class="run-status" aria-live="polite" hidden>
+            <div class="spinner"></div>
+            <span id="robot-run-status-text">Executing test suite…</span>
+          </div>
+
+        </div><!-- /panel-body -->
+      </section>
+    </div><!-- /page-robot -->
+
+
+    <!-- ╔══════════════════════════════════════════════════════╗ -->
+    <!-- ║  Page 3 — 報告區                                    ║ -->
+    <!-- ╚══════════════════════════════════════════════════════╝ -->
+    <div id="page-reports" class="page" role="tabpanel" aria-labelledby="ptab-reports">
+      <section id="report-panel" class="panel panel--full" aria-labelledby="report-heading">
+        <div class="panel-header">
+          <h2 id="report-heading" class="panel-title">
+            <span class="panel-icon">📊</span> 測試報告
+          </h2>
+          <button class="btn btn--ghost btn--sm" onclick="loadReports()">↻ Refresh</button>
         </div>
 
-      </div>
-    </section>
-
-
-    <!-- ╔══════════════════════════════════╗ -->
-    <!-- ║  Panel 2 — Robot 腳本選擇區      ║ -->
-    <!-- ╚══════════════════════════════════╝ -->
-    <section id="robot-panel" class="panel" aria-labelledby="robot-heading">
-      <div class="panel-header">
-        <h2 id="robot-heading" class="panel-title">
-          <span class="panel-icon">🤖</span> Robot 腳本選擇區
-        </h2>
-        <span class="panel-badge panel-badge--info">
-          <span id="suite-count">0</span> suites
-        </span>
-      </div>
-
-      <div class="panel-body">
-        <!-- Suite list -->
-        <div class="form-group">
-          <label for="robot-suite-list">Available Test Suites</label>
-          <div id="robot-suite-list" class="suite-list" role="listbox"
-               aria-label="Robot Framework test suites">
-            <div class="suite-empty">⏳ Loading suites...</div>
+        <div class="panel-body">
+          <div id="report-list" class="report-list" aria-label="Test run reports">
+            <div class="report-empty">尚無報告。執行測試套件後報告將顯示於此。</div>
           </div>
         </div>
-
-        <!-- Extra variables -->
-        <div class="form-group">
-          <label for="robot-extra-vars">Extra Variables <span class="hint">(KEY:value, one per line)</span></label>
-          <textarea id="robot-extra-vars" class="textarea-input" rows="4"
-                    placeholder="HOST:192.168.7.2&#10;PORT:623&#10;OPENBMC_PASSWORD:0penBmc"></textarea>
-        </div>
-
-        <!-- Run button -->
-        <div class="btn-row">
-          <button id="btn-run-robot" class="btn btn--primary" onclick="runRobotSuite()">
-            ▶ Run Selected Suite
-          </button>
-          <button class="btn btn--ghost" onclick="loadSuites()">
-            ↻ Refresh Suites
-          </button>
-        </div>
-
-        <!-- Execution status -->
-        <div id="robot-run-status" class="run-status" aria-live="polite" hidden>
-          <div class="spinner"></div>
-          <span>Executing test suite…</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ╔══════════════════════════════════╗ -->
-    <!-- ║  Panel 3 — 報告區                ║ -->
-    <!-- ╚══════════════════════════════════╝ -->
-    <section id="report-panel" class="panel" aria-labelledby="report-heading">
-      <div class="panel-header">
-        <h2 id="report-heading" class="panel-title">
-          <span class="panel-icon">📊</span> 報告區
-        </h2>
-        <button class="btn btn--ghost btn--sm" onclick="loadReports()">↻ Refresh</button>
-      </div>
-
-      <div class="panel-body">
-        <div id="report-list" class="report-list" aria-label="Test run reports">
-          <div class="report-empty">No reports yet. Run a test suite to generate reports.</div>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div><!-- /page-reports -->
 
   </main>
 

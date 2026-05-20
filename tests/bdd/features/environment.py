@@ -17,3 +17,10 @@ def after_scenario(context, scenario):
         print(f"\n[HOOK] Scenario failed: {scenario.name}")
         if context.response is not None:
             print(f"  Last response status: {context.response.status_code}")
+    
+    # 確保每個測試案例結束後，皆能清理並停止背景的 QEMU 進程
+    import httpx
+    try:
+        httpx.post(f"{context.base_url}/api/qemu/stop", timeout=5)
+    except Exception:
+        pass

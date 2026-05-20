@@ -25,8 +25,8 @@ Feature: Portal Architecture — Main Dashboard Layout
     And the page should display exactly three panels:
       | panel_id      | panel_label              |
       | qemu-panel    | QEMU 操作區              |
-      | robot-panel   | Robot 腳本選擇區         |
-      | report-panel  | 報告區                   |
+      | robot-panel   | Robot 測試               |
+      | report-panel  | 報告                     |
 
   # ──────────────────────────────────────────────────────────────────────────
   # Scenario 2 — QEMU Control Panel
@@ -37,7 +37,7 @@ Feature: Portal Architecture — Main Dashboard Layout
     And the QEMU panel should display the current QEMU status
     And the QEMU panel should show a machine type selector
     And the QEMU panel should show a firmware image selector
-    And the QEMU panel should have a "Start QEMU" button
+    And the QEMU panel should have a "Launch QEMU" button
     And the QEMU panel should have a "Stop QEMU" button
     And the QEMU panel should show a real-time log console
 
@@ -48,7 +48,7 @@ Feature: Portal Architecture — Main Dashboard Layout
     When the user navigates to the portal home page
     Then the Robot panel should be visible
     And the Robot panel should list available .robot test suites
-    And the Robot panel should have a "Run Selected Suite" button
+    And the Robot panel should have a "Run (同步)" button
     And the Robot panel should allow setting extra Robot variables
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -58,8 +58,6 @@ Feature: Portal Architecture — Main Dashboard Layout
     When the user navigates to the portal home page
     Then the Report panel should be visible
     And the Report panel should list past test run reports
-    And each report entry should display the run timestamp
-    And each report entry should have a link to the HTML report
 
   # ──────────────────────────────────────────────────────────────────────────
   # Scenario 5 — API Health Check

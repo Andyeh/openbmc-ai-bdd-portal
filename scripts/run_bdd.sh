@@ -19,12 +19,17 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo " 🧪  Running BDD Tests"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+if [ $# -eq 0 ]; then
+  TARGETS=("$FEATURE_DIR")
+else
+  TARGETS=("$@")
+fi
+
 PYTHONPATH="$PROJECT_DIR" behave \
-  "$FEATURE_DIR" \
   --format allure_behave.formatter:AllureFormatter \
   --outfile "$ALLURE_RESULTS" \
   --format pretty \
-  "$@"
+  "${TARGETS[@]}"
 
 echo ""
 echo "[done] Results saved to: $ALLURE_RESULTS"

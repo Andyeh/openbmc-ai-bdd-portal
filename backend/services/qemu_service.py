@@ -379,35 +379,38 @@ class QemuService:
     # ── Stop ──────────────────────────────────────────────────────
 
     def stop(self) -> dict:
-        if not self._session or not self._session.is_alive():
+        session = self._session
+        if not session or not session.is_alive():
             return {"ok": False, "error": "No running QEMU session"}
+        # Clear immediately so concurrent stop() calls get "No running QEMU session"
+        # instead of racing through cleanup and hitting AttributeError.
+        self._session = None
         try:
-            if self._session.docker_container_name:
+            if session.docker_container_name:
                 # Docker mode: gracefully stop the named container
                 subprocess.run(
-                    ["docker", "stop", self._session.docker_container_name],
+                    ["docker", "stop", session.docker_container_name],
                     timeout=15, check=False,
                 )
             else:
                 # Host mode: kill the entire process group
-                pgid = os.getpgid(self._session.process.pid)
+                pgid = os.getpgid(session.process.pid)
                 os.killpg(pgid, signal.SIGTERM)
         except ProcessLookupError:
             pass
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
         finally:
-            if self._session.master_fd is not None:
+            if session.master_fd is not None:
                 try:
-                    os.close(self._session.master_fd)
+                    os.close(session.master_fd)
                 except OSError:
                     pass
-            if self._session.tmp_drive and Path(self._session.tmp_drive).exists():
+            if session.tmp_drive and Path(session.tmp_drive).exists():
                 try:
-                    os.unlink(self._session.tmp_drive)
+                    os.unlink(session.tmp_drive)
                 except OSError:
                     pass
-            self._session = None
         return {"ok": True}
 
     # ── Log streaming ─────────────────────────────────────────────

@@ -59,3 +59,18 @@ coverage.xml
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Generated / runtime output
+pretty.output
+tmp/
+logs/
+
+# SSL certificates (runtime-generated, never commit private keys)
+certificate_dir/
+
+# External Redfish validator tools (cloned separately, not part of this repo)
+Redfish-Interop-Validator/
+Redfish-JsonSchema-ResponseValidator/
+Redfish-Protocol-Validator/
+Redfish-Reference-Checker/
+Redfish-Usecase-Checkers/

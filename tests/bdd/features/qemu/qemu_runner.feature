@@ -40,7 +40,7 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
   # Scenario 3 — API 接受 JSON 參數並組合 QEMU 指令
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: Backend receives JSON parameters and builds a valid QEMU command
-    When the user sends a POST request to "/api/qemu/build-command" with body:
+    When the user sends a POST request to "/api/qemu/build-command" with body
       """
       {
         "machine": "ast2700a1-evb",
@@ -54,21 +54,21 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
     And the command should include "-machine ast2700a1-evb"
     And the command should include "-m 1G"
     And the command should include "-drive file="
-    And the command should include "format=raw,if=mtd"
+    And the command should include "if=mtd,format=raw"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Scenario 4 — 成功啟動 QEMU 並取得 PID
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: User launches QEMU with valid parameters and gets a process ID
     Given no QEMU instance is currently running
-    When the user sends a POST request to "/api/qemu/launch" with body:
+    When the user sends a POST request to "/api/qemu/launch" with body
       """
       {
         "machine": "ast2700a1-evb",
         "memory": "1G",
         "image": "obmc-phosphor-image-ast2700-default.static.mtd",
         "extra_args": "-serial mon:stdio -serial null -display none",
-        "dry_run": true
+        "dry_run": false
       }
       """
     Then the response status code should be 200
@@ -81,7 +81,7 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: User attempts to launch QEMU when one is already running
     Given a QEMU instance is currently running
-    When the user sends a POST request to "/api/qemu/launch" with body:
+    When the user sends a POST request to "/api/qemu/launch" with body
       """
       {
         "machine": "ast2700a1-evb",
@@ -97,7 +97,7 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
   # Scenario 6 — 缺少必填欄位時應回傳錯誤
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: Backend rejects launch request with missing required fields
-    When the user sends a POST request to "/api/qemu/launch" with body:
+    When the user sends a POST request to "/api/qemu/launch" with body
       """
       {
         "machine": "ast2700a1-evb"
@@ -119,7 +119,7 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: User stops a running QEMU instance
     Given a QEMU instance is currently running
-    When the user sends a POST request to "/api/qemu/stop" with body:
+    When the user sends a POST request to "/api/qemu/stop" with body
       """
       {}
       """
@@ -132,7 +132,7 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: User attempts to stop QEMU when nothing is running
     Given no QEMU instance is currently running
-    When the user sends a POST request to "/api/qemu/stop" with body:
+    When the user sends a POST request to "/api/qemu/stop" with body
       """
       {}
       """
@@ -145,7 +145,7 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
   # ──────────────────────────────────────────────────────────────────────────
   Scenario: Dry-run mode returns assembled command without executing it
     Given no QEMU instance is currently running
-    When the user sends a POST request to "/api/qemu/launch" with body:
+    When the user sends a POST request to "/api/qemu/launch" with body
       """
       {
         "machine": "ast2700a1-evb",

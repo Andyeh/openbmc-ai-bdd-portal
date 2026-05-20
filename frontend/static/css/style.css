@@ -137,23 +137,66 @@ body {
   50%       { opacity: 0.4; }
 }
 
-/* ── Dashboard Grid ─────────────────────────────────────────────── */
-.dashboard {
-  max-width: 1600px;
-  margin: var(--space-6) auto;
+/* ── Page Tab Navigation ─────────────────────────────────────────── */
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.page-tab:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: rgba(99, 179, 237, 0.2);
+}
+
+.page-tab.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: rgba(99, 179, 237, 0.35);
+}
+
+/* ── Page Container & Pages ──────────────────────────────────────── */
+.page-container {
+  max-width: 1400px;
+  margin: var(--space-5) auto;
   padding: 0 var(--space-6);
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--space-5);
-  align-items: start;
 }
 
-@media (max-width: 1100px) {
-  .dashboard { grid-template-columns: 1fr 1fr; }
+.page {
+  display: none;
+  animation: pageIn 0.2s ease;
 }
 
-@media (max-width: 720px) {
-  .dashboard { grid-template-columns: 1fr; }
+.page--active {
+  display: block;
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Full-width Panel ────────────────────────────────────────────── */
+.panel--full {
+  width: 100%;
 }
 
 /* ── Panel ──────────────────────────────────────────────────────── */
@@ -639,3 +682,597 @@ label {
 
 .port-input::-webkit-outer-spin-button,
 .port-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   STEP 3 — Robot Framework Tree + Log Streaming Additions
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Filter / Search bar ─────────────────────────────────────── */
+.tree-toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.tree-search {
+  flex: 1;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  padding: 5px 10px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.tree-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.tree-search::placeholder { color: var(--text-muted); }
+
+/* ── Category chips (quick-filter by top-level folder) ─────── */
+.category-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  user-select: none;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.chip-count {
+  font-size: 0.62rem;
+  background: rgba(99,179,237,0.2);
+  border-radius: 99px;
+  padding: 0 5px;
+  font-weight: 700;
+}
+
+/* ── Checkbox Tree ───────────────────────────────────────────── */
+.tree-container {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tree-container::-webkit-scrollbar { width: 5px; }
+.tree-container::-webkit-scrollbar-track { background: transparent; }
+.tree-container::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+.tree-container::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+.tree-empty {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* Tree node row */
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background var(--transition);
+  border-bottom: 1px solid rgba(99,179,237,0.04);
+  position: relative;
+  min-height: 32px;
+}
+.tree-node:hover { background: var(--accent-dim); }
+.tree-node:last-child { border-bottom: none; }
+
+/* indentation guide lines */
+.tree-node::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background var(--transition);
+}
+.tree-node:hover::before { background: var(--accent); }
+
+.tree-indent { display: inline-block; width: 18px; flex-shrink: 0; }
+
+/* Toggle arrow */
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  transition: transform var(--transition), color var(--transition);
+  border-radius: 3px;
+}
+.tree-toggle:hover { color: var(--accent); background: var(--accent-dim); }
+.tree-toggle.open { transform: rotate(90deg); }
+.tree-toggle-placeholder { width: 18px; flex-shrink: 0; }
+
+/* Checkbox */
+.tree-checkbox {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Node icon + label */
+.tree-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.tree-label {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-label.dir { font-weight: 600; color: var(--info); }
+.tree-label.file { font-weight: 400; }
+
+/* File count badge on dirs */
+.tree-badge {
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: rgba(118,228,247,0.1);
+  color: var(--info);
+  border: 1px solid rgba(118,228,247,0.2);
+  flex-shrink: 0;
+}
+
+/* Hidden children rows */
+.tree-children { display: block; }
+.tree-children.collapsed { display: none; }
+
+/* ── Selection summary bar ───────────────────────────────────── */
+.selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(99,179,237,0.25);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: var(--accent);
+  transition: opacity var(--transition);
+}
+.selection-bar.hidden { display: none; }
+.selection-count { font-weight: 700; }
+.selection-clear { cursor: pointer; opacity: 0.6; transition: opacity var(--transition); }
+.selection-clear:hover { opacity: 1; }
+
+/* ── Robot variables form ────────────────────────────────────── */
+.vars-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-3);
+}
+.var-field { display: flex; flex-direction: column; gap: 3px; }
+.var-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.var-input {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color var(--transition);
+  width: 100%;
+}
+.var-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.var-input.var-password { letter-spacing: 0.1em; }
+
+.vars-grid-full { grid-column: 1 / -1; }
+
+/* ── Run ID badge ────────────────────────────────────────────── */
+.run-id-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: rgba(72,187,120,0.12);
+  border: 1px solid rgba(72,187,120,0.3);
+  border-radius: 99px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--success);
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
+
+/* ── Robot log console ───────────────────────────────────────── */
+.robot-log-wrap {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #05080f;
+}
+
+#robot-log-console {
+  height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.65;
+  color: #c5e8c5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+#robot-log-console::-webkit-scrollbar { width: 5px; }
+#robot-log-console::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+
+/* ANSI-like coloring via CSS classes added by JS */
+.log-pass    { color: #48bb78; }
+.log-fail    { color: #fc8181; }
+.log-warn    { color: #f6ad55; }
+.log-info    { color: #76e4f7; }
+.log-debug   { color: #94a3b8; }
+.log-done    { color: #a3e635; font-weight: 700; }
+.log-sep     { color: #2d3748; }
+
+/* ── Progress bar ────────────────────────────────────────────── */
+.progress-wrap {
+  height: 3px;
+  background: var(--bg-elevated);
+  border-radius: 99px;
+  overflow: hidden;
+  transition: opacity 0.3s;
+}
+.progress-wrap.hidden { opacity: 0; }
+
+.progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--info) 100%);
+  transition: width 0.4s ease;
+  animation: progress-shimmer 1.5s infinite;
+  background-size: 200% 100%;
+}
+
+@keyframes progress-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ── Expand toggle for robot panel (tab pills) ──────────────── */
+.tab-pills {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-base);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+.tab-pill {
+  flex: 1;
+  text-align: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all var(--transition);
+  border: 1px solid transparent;
+  user-select: none;
+}
+.tab-pill.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: rgba(99,179,237,0.25);
+}
+.tab-pill:hover:not(.active) { color: var(--text-secondary); }
+
+/* ── Collapsible sections inside robot panel ────────────────── */
+.collapsible-section { overflow: hidden; }
+.collapsible-section.collapsed { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   STEP 4 — Page Layout, QEMU Two-Col, CI Cards, Test Cards
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── QEMU two-column body ────────────────────────────────────── */
+.panel-body--two-col {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.qemu-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.qemu-console-wrap {
+  min-height: 580px;
+  display: flex;
+  flex-direction: column;
+}
+
+.qemu-console-wrap .log-console-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.qemu-terminal-full {
+  flex: 1;
+  height: 540px !important;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+@media (max-width: 1100px) {
+  .panel-body--two-col {
+    grid-template-columns: 1fr;
+  }
+  .qemu-console-wrap { min-height: 400px; }
+}
+
+/* ── CI Preset Cards Grid ────────────────────────────────────── */
+.ci-section-header {
+  margin-bottom: var(--space-4);
+}
+
+.section-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.ci-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.ci-card-loading {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: var(--space-5);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.ci-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.ci-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--info));
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.ci-card:hover {
+  border-color: var(--border-glow);
+  box-shadow: var(--accent-glow);
+}
+
+.ci-card:hover::before { opacity: 1; }
+
+.ci-card.selected {
+  border-color: var(--accent);
+  background: rgba(99, 179, 237, 0.06);
+}
+
+.ci-card.selected::before { opacity: 1; }
+
+.ci-card-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.ci-card-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  flex: 1;
+}
+
+.ci-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ci-card-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.ci-card-count strong {
+  color: var(--info);
+}
+
+.ci-card-btn {
+  font-size: 0.72rem;
+  padding: 4px 12px;
+  border-radius: 99px;
+  border: 1px solid rgba(99, 179, 237, 0.3);
+  background: var(--accent-dim);
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.ci-card-btn:hover {
+  background: var(--accent);
+  color: #0b0f1a;
+}
+.ci-card-btn.deselect {
+  border-color: rgba(72, 187, 120, 0.4);
+  background: rgba(72, 187, 120, 0.12);
+  color: var(--success);
+}
+.ci-card-btn.deselect:hover {
+  background: var(--success);
+  color: #0b0f1a;
+}
+
+/* ── Test Card List (browse view) ────────────────────────────── */
+.test-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.test-card-list::-webkit-scrollbar { width: 5px; }
+.test-card-list::-webkit-scrollbar-track { background: transparent; }
+.test-card-list::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 3px; }
+
+.test-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition), background var(--transition);
+  cursor: pointer;
+}
+
+.test-card:hover {
+  border-color: rgba(99, 179, 237, 0.2);
+  background: rgba(99, 179, 237, 0.04);
+}
+
+.test-card.checked {
+  border-color: var(--accent);
+  background: rgba(99, 179, 237, 0.07);
+}
+
+.test-card-cb {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.test-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.test-card-name {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.test-card-doc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.test-card-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+.test-tag {
+  font-size: 0.62rem;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: rgba(118, 228, 247, 0.08);
+  border: 1px solid rgba(118, 228, 247, 0.18);
+  color: var(--info);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.test-file {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Tab pills — allow wider pills for robot section tabs ─────── */
+.tab-pill { flex: unset; padding: 5px 14px; }
+
+/* nav main height increase for page tabs  */
+#main-nav { height: 56px; }
+.nav-inner { gap: var(--space-5); }
