@@ -7,6 +7,7 @@ from typing import Optional
 import re
 
 from backend.services.robot_service import robot_service
+from backend.core.config import settings
 
 router = APIRouter(prefix="/api/robot", tags=["Robot"])
 
@@ -114,7 +115,10 @@ def get_categorized():
 @router.get("/test-lists")
 def get_test_lists():
     """Return predefined CI test suites from test_lists/ directory."""
-    return {"test_lists": robot_service.list_test_lists()}
+    return {
+        "test_lists": robot_service.list_test_lists(),
+        "robot_dir":  str(settings.robot_script_dir),
+    }
 
 
 @router.get("/reports")

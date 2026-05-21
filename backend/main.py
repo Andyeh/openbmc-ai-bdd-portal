@@ -43,6 +43,15 @@ app.mount(
     name="static",
 )
 
+# Serve Robot Framework report files
+_reports_dir = BASE_DIR / "tests" / "bdd" / "reports"
+_reports_dir.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/reports",
+    StaticFiles(directory=str(_reports_dir)),
+    name="robot-reports",
+)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):

@@ -487,6 +487,16 @@ label {
   font-size: 0.875rem;
   color: var(--accent);
 }
+.run-status[hidden] { display: none; }
+
+.run-status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.run-status-inline[hidden] { display: none; }
 
 .spinner {
   width: 16px;
@@ -593,8 +603,11 @@ label {
   font-size: 0.72rem;
   line-height: 1.6;
   padding: var(--space-3);
+  height: auto;
+  min-height: 40px;
+  max-height: 400px;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   white-space: pre-wrap;
   word-break: break-all;
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
@@ -931,7 +944,7 @@ label {
 }
 
 #robot-log-console {
-  height: 280px;
+  height: 480px;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-3);
@@ -1093,7 +1106,10 @@ label {
   transition: border-color var(--transition), box-shadow var(--transition);
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  user-select: none;
 }
+.ci-card-btn { pointer-events: none; }
 
 .ci-card::before {
   content: '';
@@ -1177,6 +1193,55 @@ label {
 .ci-card-btn.deselect:hover {
   background: var(--success);
   color: #0b0f1a;
+}
+
+/* ── CI Tag Command Panel (below cards grid) ─────────────────── */
+.ci-tag-cmd-panel {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(99, 179, 237, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.ci-tag-panel-header {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+
+/* ── CI Tag List ─────────────────────────────────────────────── */
+.ci-tag-list {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ci-tag-row {
+  /* inherits log-console-wrap styles; gap added by list */
+}
+.ci-tag-name {
+  font-size: 0.85rem;
+  color: #f6ad55;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.ci-tag-cmd-body {
+  margin: 0;
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.65;
+  color: #f6ad55;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+  background: transparent;
+}
+.ci-copy-btn {
+  flex-shrink: 0;
+  font-size: 0.68rem;
 }
 
 /* ── Test Card List (browse view) ────────────────────────────── */

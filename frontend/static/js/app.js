@@ -134,6 +134,19 @@ function debouncePreview() {
   _previewTimer = setTimeout(previewCommand, 500);
 }
 
+async function copyQemuCmd() {
+  const pre = document.getElementById('qemu-cmd-preview');
+  const btn = document.getElementById('qemu-cmd-copy-btn');
+  if (!pre || !btn) return;
+  try {
+    await navigator.clipboard.writeText(pre.textContent);
+    btn.textContent = '已複製 ✓';
+    setTimeout(() => { btn.textContent = '複製'; }, 2000);
+  } catch {
+    showToast('複製失敗', 'error');
+  }
+}
+
 async function previewCommand() {
   const image = document.getElementById('qemu-image').value;
   if (!image) {
@@ -159,7 +172,7 @@ async function previewCommand() {
 
   try {
     const data = await API.post('/api/qemu/build-command', body);
-    document.getElementById('qemu-cmd-preview').textContent = data.command ?? '# error';
+    document.getElementById('qemu-cmd-preview').textContent = _formatQemuCmd(data.command ?? '# error');
   } catch (e) {
     document.getElementById('qemu-cmd-preview').textContent = `# Error: ${e}`;
   }
@@ -228,7 +241,7 @@ async function launchQemu() {
 
     if (data.ok) {
       if (isDryRun) {
-        document.getElementById('qemu-cmd-preview').textContent = data.command;
+        document.getElementById('qemu-cmd-preview').textContent = _formatQemuCmd(data.command);
         showToast('Dry-run complete — see command preview above', 'success');
         appendLog(`[DRY-RUN] ${data.command}\n`);
       } else {
@@ -336,9 +349,11 @@ function clearLog() {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let _ciData          = [];   // test_lists from API
+let _robotDir        = '.';  // robot_script_dir from API
 let _categorizedData = [];   // categorized tests from API
 let _selectedCiIncludes = new Set();   // --include tag names (for CI mode)
-let _selectedSuites  = new Set();      // file paths (for browse mode)
+let _selectedSuites  = new Set();      // file paths (for browse mode — used for running)
+let _selectedTests   = new Set();      // "file\0name" keys (for test-case count + panel display)
 let _activeBrowseCat = null;           // active category chip filter
 let _robotWs         = null;
 let _currentRunId    = null;
@@ -346,10 +361,11 @@ let _currentRunId    = null;
 // ── Robot Tab switching ───────────────────────────────────────────────────────
 
 function switchRobotTab(tab) {
-  ['ci', 'browse', 'vars', 'log'].forEach(t => {
+  ['vars', 'ci', 'browse', 'log'].forEach(t => {
     document.getElementById(`robot-section-${t}`)?.classList.toggle('collapsed', t !== tab);
     document.getElementById(`tab-${t}`)?.classList.toggle('active', t === tab);
   });
+  if (tab === 'log') _syncLogCmdPreview();
 }
 
 // ── CI Preset Cards ───────────────────────────────────────────────────────────
@@ -357,12 +373,24 @@ function switchRobotTab(tab) {
 async function loadCiCards() {
   try {
     const data = await API.get('/api/robot/test-lists');
-    _ciData = data.test_lists ?? [];
+    _ciData    = data.test_lists ?? [];
+    _robotDir  = data.robot_dir  ?? '.';
     _renderCiCards();
   } catch {
     const grid = document.getElementById('ci-cards-grid');
     grid.innerHTML = '<div class="ci-card-loading">⚠ 無法載入 CI 套件</div>';
   }
+}
+
+function _buildTagCommand(tag) {
+  const vars = _collectVariables();
+  const parts = ['python3', '-m', 'robot'];
+  for (const [k, v] of Object.entries(vars)) {
+    parts.push('--variable', `${k}:${v}`);
+  }
+  parts.push('--include', tag);
+  parts.push(_robotDir);
+  return parts.join(' ');
 }
 
 function _renderCiCards() {
@@ -415,10 +443,11 @@ function _buildCiCard(tl) {
   const btn = document.createElement('button');
   btn.className = 'ci-card-btn';
   btn.textContent = '選取';
-  btn.addEventListener('click', () => _toggleCiCard(tl, card, btn));
+  btn.setAttribute('tabindex', '-1');
   footer.appendChild(btn);
 
   card.appendChild(footer);
+  card.addEventListener('click', () => _toggleCiCard(tl, card, btn));
 
   // Restore selected state if already selected
   const isSelected = tl.includes.some(tag => _selectedCiIncludes.has(tag));
@@ -435,13 +464,11 @@ function _toggleCiCard(tl, card, btn) {
   const isCurrentlySelected = card.classList.contains('selected');
 
   if (isCurrentlySelected) {
-    // Deselect: remove all this card's includes
     tl.includes.forEach(tag => _selectedCiIncludes.delete(tag));
     card.classList.remove('selected');
     btn.classList.remove('deselect');
     btn.textContent = '選取';
   } else {
-    // Select: add this card's includes
     tl.includes.forEach(tag => _selectedCiIncludes.add(tag));
     card.classList.add('selected');
     btn.classList.add('deselect');
@@ -449,6 +476,84 @@ function _toggleCiCard(tl, card, btn) {
   }
 
   _updateCiSelectionBar();
+  _renderCiTagCmdPanel();
+}
+
+function _renderCiTagCmdPanel() {
+  const panel = document.getElementById('ci-tag-cmd-panel');
+  if (!panel) return;
+
+  // Collect all selected cards' tag data
+  const selectedCards = [...document.querySelectorAll('.ci-card.selected')];
+  if (!selectedCards.length) {
+    panel.style.display = 'none';
+    panel.replaceChildren();
+    return;
+  }
+
+  panel.style.display = 'block';
+  panel.replaceChildren();
+
+  const header = document.createElement('div');
+  header.className = 'ci-tag-panel-header';
+  header.textContent = '📋 已選取套件的測試標籤指令';
+  panel.appendChild(header);
+
+  // Gather tags from all selected CI cards (preserve order)
+  const allTags = [];
+  for (const tl of _ciData) {
+    const card = document.getElementById(`ci-card-${tl.name}`);
+    if (card?.classList.contains('selected')) {
+      for (const tag of tl.includes) {
+        if (!allTags.includes(tag)) allTags.push(tag);
+      }
+    }
+  }
+
+  const list = document.createElement('div');
+  list.className = 'ci-tag-list';
+
+  for (const tag of allTags) {
+    const cmd = _buildTagCommand(tag);
+
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '12px';
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.className = 'log-console-header';
+    hdr.style.borderRadius = '6px 6px 0 0';
+
+    const tagLabel = document.createElement('span');
+    tagLabel.textContent = tag;
+    tagLabel.style.cssText = 'font-family:var(--font-mono);font-size:0.85rem;font-weight:700;color:var(--text-primary,#e2e8f0);letter-spacing:0.04em';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn--ghost btn--xs';
+    copyBtn.textContent = '複製';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+        copyBtn.textContent = '已複製 ✓';
+        setTimeout(() => { copyBtn.textContent = '複製'; }, 2000);
+      } catch {
+        showToast('複製失敗，請手動複製', 'error');
+      }
+    });
+
+    hdr.appendChild(tagLabel);
+    hdr.appendChild(copyBtn);
+
+    // Body — same as #qemu-cmd-preview
+    const body = document.createElement('pre');
+    body.style.cssText = 'margin:0;background:#05080f;font-family:var(--font-mono);font-size:0.72rem;line-height:1.6;color:#f6ad55;padding:var(--space-3);overflow-x:auto;white-space:pre-wrap;word-break:break-all;border-radius:0 0 6px 6px;border:1px solid var(--border-subtle);border-top:none';
+    body.textContent = cmd;
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    list.appendChild(wrap);
+  }
+  panel.appendChild(list);
 }
 
 function _updateCiSelectionBar() {
@@ -459,7 +564,7 @@ function _updateCiSelectionBar() {
 
   bar.classList.toggle('hidden', n === 0);
   if (count) count.textContent = String(n);
-  if (badge) badge.textContent = String(n + _selectedSuites.size);
+  if (badge) badge.textContent = String(n + _selectedTests.size);
 }
 
 function clearCiSelection() {
@@ -470,6 +575,7 @@ function clearCiSelection() {
     if (btn) { btn.classList.remove('deselect'); btn.textContent = '選取'; }
   });
   _updateCiSelectionBar();
+  _renderCiTagCmdPanel();
 }
 
 // ── Categorized Test Browser ──────────────────────────────────────────────────
@@ -576,34 +682,46 @@ function _renderBrowseTests(categoryKey, query) {
     empty.className = 'tree-empty';
     empty.textContent = q ? '🔍 無符合的測試' : '📂 此類別無測試';
     container.appendChild(empty);
+    _updateBrowseSelectionBar();
     return;
   }
 
   for (const t of tests) {
     container.appendChild(_buildTestCard(t));
   }
+  _updateBrowseSelectionBar();
 }
 
 function _buildTestCard(t) {
+  const _testKey = t.file + '\0' + t.name;
   const card = document.createElement('div');
-  card.className = 'test-card' + (_selectedSuites.has(t.file) ? ' checked' : '');
+  card.className = 'test-card' + (_selectedTests.has(_testKey) ? ' checked' : '');
   card.setAttribute('role', 'listitem');
 
   // Checkbox
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.className = 'test-card-cb';
-  cb.checked = _selectedSuites.has(t.file);
+  cb.checked = _selectedTests.has(_testKey);
   cb.setAttribute('aria-label', t.name);
+  card._suiteFile = t.file;
+  card._testKey   = _testKey;
   cb.addEventListener('change', () => {
     if (cb.checked) {
+      _selectedTests.add(_testKey);
       _selectedSuites.add(t.file);
       card.classList.add('checked');
     } else {
-      _selectedSuites.delete(t.file);
+      _selectedTests.delete(_testKey);
+      // Remove file only if no other selected test in this file remains
+      const prefix = t.file + '\0';
+      let stillHas = false;
+      for (const k of _selectedTests) { if (k.startsWith(prefix)) { stillHas = true; break; } }
+      if (!stillHas) _selectedSuites.delete(t.file);
       card.classList.remove('checked');
     }
     _updateBrowseSelectionBar();
+    _renderBrowseTagCmdPanel();
   });
   card.appendChild(cb);
 
@@ -669,34 +787,166 @@ function filterBrowse(query) {
 }
 
 function _updateBrowseSelectionBar() {
-  const bar   = document.getElementById('browse-selection-bar');
   const count = document.getElementById('browse-selected-count');
   const badge = document.getElementById('selected-count-badge');
-  const n = _selectedSuites.size;
-  bar.classList.toggle('hidden', n === 0);
+  const n = _selectedTests.size;   // test-case count (not unique-file count)
   if (count) count.textContent = String(n);
   if (badge) badge.textContent = String(n + _selectedCiIncludes.size);
 }
 
+function selectAllBrowse() {
+  document.querySelectorAll('.test-card').forEach(card => {
+    const cb = card.querySelector('.test-card-cb');
+    if (!cb) return;
+    cb.checked = true;
+    card.classList.add('checked');
+    if (card._testKey)   _selectedTests.add(card._testKey);
+    if (card._suiteFile) _selectedSuites.add(card._suiteFile);
+  });
+  _updateBrowseSelectionBar();
+  _renderBrowseTagCmdPanel();
+}
+
+function clearCategoryBrowse() {
+  document.querySelectorAll('.test-card').forEach(card => {
+    const cb = card.querySelector('.test-card-cb');
+    if (!cb) return;
+    cb.checked = false;
+    card.classList.remove('checked');
+    if (card._testKey) _selectedTests.delete(card._testKey);
+  });
+  // Rebuild _selectedSuites from remaining _selectedTests
+  _selectedSuites.clear();
+  for (const k of _selectedTests) {
+    const sep = k.indexOf('\0');
+    if (sep > 0) _selectedSuites.add(k.slice(0, sep));
+  }
+  _updateBrowseSelectionBar();
+  _renderBrowseTagCmdPanel();
+}
+
 function clearBrowseSelections() {
   _selectedSuites.clear();
+  _selectedTests.clear();
   document.querySelectorAll('.test-card-cb').forEach(cb => {
     cb.checked = false;
     cb.closest('.test-card')?.classList.remove('checked');
   });
   _updateBrowseSelectionBar();
+  _renderBrowseTagCmdPanel();
+}
+
+function _renderBrowseTagCmdPanel() {
+  const panel = document.getElementById('browse-tag-cmd-panel');
+  if (!panel) return;
+  if (!_selectedTests.size) {
+    panel.style.display = 'none';
+    panel.replaceChildren();
+    return;
+  }
+
+  panel.style.display = 'block';
+  panel.replaceChildren();
+
+  // Group selected tests by file
+  const byFile = new Map();
+  for (const k of _selectedTests) {
+    const sep = k.indexOf('\0');
+    const file = k.slice(0, sep);
+    const name = k.slice(sep + 1);
+    if (!byFile.has(file)) byFile.set(file, []);
+    byFile.get(file).push(name);
+  }
+
+  const header = document.createElement('div');
+  header.className = 'ci-tag-panel-header';
+  header.textContent = `📋 已選取腳本執行指令（${byFile.size} 個檔案 / ${_selectedTests.size} 個測試案例）`;
+  panel.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'ci-tag-list';
+
+  for (const [file, testNames] of byFile) {
+    const cmd = _buildBrowseCommand(file, testNames);
+
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '12px';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'log-console-header';
+    hdr.style.borderRadius = '6px 6px 0 0';
+
+    const label = document.createElement('span');
+    label.textContent = file;
+    label.style.cssText = 'font-family:var(--font-mono);font-size:0.85rem;font-weight:700;color:var(--text-primary,#e2e8f0);letter-spacing:0.04em';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn--ghost btn--xs';
+    copyBtn.textContent = '複製';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+        copyBtn.textContent = '已複製 ✓';
+        setTimeout(() => { copyBtn.textContent = '複製'; }, 2000);
+      } catch { showToast('複製失敗', 'error'); }
+    });
+
+    hdr.appendChild(label);
+    hdr.appendChild(copyBtn);
+
+    const body = document.createElement('pre');
+    body.style.cssText = 'margin:0;background:#05080f;font-family:var(--font-mono);font-size:0.72rem;line-height:1.6;color:#f6ad55;padding:var(--space-3);overflow-x:auto;white-space:pre-wrap;word-break:break-all;border-radius:0 0 6px 6px;border:1px solid var(--border-subtle);border-top:none';
+    body.textContent = cmd;
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    list.appendChild(wrap);
+  }
+  panel.appendChild(list);
+}
+
+function _buildBrowseCommand(file, testNames) {
+  const vars = _collectVariables();
+  const parts = ['python3', '-m', 'robot'];
+  for (const [k, v] of Object.entries(vars)) {
+    parts.push('--variable', `${k}:${v}`);
+  }
+  for (const name of testNames) {
+    parts.push('--test', `"${name}"`);
+  }
+  parts.push(file);
+  return parts.join(' ');
+}
+
+function _buildSuiteCommand(suite) {
+  const vars = _collectVariables();
+  const parts = ['python3', '-m', 'robot'];
+  for (const [k, v] of Object.entries(vars)) {
+    parts.push('--variable', `${k}:${v}`);
+  }
+  parts.push(suite);
+  return parts.join(' ');
 }
 
 // ── Variables helpers ─────────────────────────────────────────────────────────
 
 function _collectVariables() {
   const vars = {};
-  const host = document.getElementById('var-host')?.value.trim();
-  const user = document.getElementById('var-user')?.value.trim();
-  const pass = document.getElementById('var-pass')?.value.trim();
-  if (host) vars['OPENBMC_HOST']     = host;
-  if (user) vars['OPENBMC_USERNAME'] = user;
-  if (pass) vars['OPENBMC_PASSWORD'] = pass;
+  const host      = document.getElementById('var-host')?.value.trim();
+  const user      = document.getElementById('var-user')?.value.trim();
+  const pass      = document.getElementById('var-pass')?.value.trim();
+  const ipmiPass  = document.getElementById('var-ipmi-pass')?.value.trim();
+  const sshPort   = document.getElementById('var-ssh-port')?.value.trim();
+  const httpsPort = document.getElementById('var-https-port')?.value.trim();
+  const ipmiPort  = document.getElementById('var-ipmi-port')?.value.trim();
+
+  if (host)      vars['OPENBMC_HOST']              = host;
+  if (user)      vars['OPENBMC_USERNAME']           = user;
+  if (pass)      vars['OPENBMC_PASSWORD']           = pass;
+  if (ipmiPass)  vars['IPMI_PASSWORD']              = ipmiPass;
+  if (sshPort)   vars['SSH_PORT']                   = sshPort;
+  if (httpsPort) vars['HTTPS_PORT']                 = httpsPort;
+  if (ipmiPort)  vars['IPMI_PORT']                  = ipmiPort;
 
   const extra = document.getElementById('var-extra')?.value.trim() ?? '';
   extra.split('\n').forEach(line => {
@@ -710,18 +960,20 @@ function _collectVariables() {
 }
 
 function fillDefaultVars() {
-  const sshPort   = document.getElementById('port-ssh')?.value  || '2222';
-  const httpsPort = document.getElementById('port-https')?.value || '2443';
-  document.getElementById('var-host').value = '127.0.0.1';
-  document.getElementById('var-user').value = 'root';
-  document.getElementById('var-pass').value = '0penBmc';
-  document.getElementById('var-extra').value =
-    `SSH_PORT:${sshPort}\nHTTPS_PORT:${httpsPort}`;
+  document.getElementById('var-host').value      = '172.18.0.2';
+  document.getElementById('var-user').value      = 'root';
+  document.getElementById('var-pass').value      = '0penBmc';
+  document.getElementById('var-ipmi-pass').value = '0penBmc';
+  document.getElementById('var-ssh-port').value  = '2222';
+  document.getElementById('var-https-port').value = '2443';
+  document.getElementById('var-ipmi-port').value = '2623';
+  document.getElementById('var-extra').value     = 'REDFISH_SUPPORT_TRANS_STATE:1';
   showToast('預設值已帶入', 'info');
 }
 
 function clearVars() {
-  ['var-host','var-user','var-pass','var-extra'].forEach(id => {
+  ['var-host','var-user','var-pass','var-ipmi-pass',
+   'var-ssh-port','var-https-port','var-ipmi-port','var-extra'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -729,86 +981,53 @@ function clearVars() {
 
 // ── CI Mode Run (using --include tags, suite = root ".") ──────────────────────
 
-async function runCiSync() {
+async function runCi() {
   const tags = [..._selectedCiIncludes];
   if (!tags.length) { showToast('請先點選至少一個 CI 套件', 'error'); return; }
 
-  const isDryRun = document.getElementById('robot-dry-run')?.checked ?? false;
+  const isDryRun  = document.getElementById('robot-dry-run-ci')?.checked ?? false;
   const variables = _collectVariables();
 
-  _setRunStatus(true, isDryRun ? '組合指令中…' : `以 ${tags.length} 個標籤執行…`, 'btn-run-ci');
-  showToast(isDryRun ? 'Dry-run…' : `執行 CI (${tags.length} tags)…`, 'info');
-
+  // Always fetch and show the assembled command preview
+  _setRunStatus(true, '組合指令中…', 'btn-stream-ci');
   try {
-    const data = await API.post('/api/robot/run', {
-      suites: ['.'],
-      variables,
-      dry_run: isDryRun,
-      include_tags: tags,
+    const preview = await API.post('/api/robot/run', {
+      suites: ['.'], variables, dry_run: true, include_tags: tags,
     });
+    if (preview.ok && preview.command) _showCmdPreview(preview.command, 'ci');
+  } catch { /* preview failure is non-blocking */ }
+  _setRunStatus(false, '', 'btn-stream-ci');
 
-    if (isDryRun && data.ok && data.command) {
-      _showCmdPreview(data.command);
-      showToast('Dry-run 完成 — 請切換至「執行參數」查看指令', 'success');
-      switchRobotTab('vars');
-    } else if (data.ok) {
-      showToast('CI 測試完成 ✓', 'success');
-      loadReports();
-    } else {
-      showToast(`執行失敗: ${data.error || `rc=${data.returncode}`}`, 'error');
-    }
-  } catch (e) {
-    showToast(`API 錯誤: ${e}`, 'error');
-  } finally {
-    _setRunStatus(false, '', 'btn-run-ci');
+  if (isDryRun) {
+    showToast('Dry-run 完成', 'success');
+    return;
   }
-}
 
-async function runCiStream() {
-  const tags = [..._selectedCiIncludes];
-  if (!tags.length) { showToast('請先點選至少一個 CI 套件', 'error'); return; }
-
-  const variables = _collectVariables();
   await _doStreamRun(['.'], variables, tags, 'btn-stream-ci');
 }
 
 // ── Browse Mode Run (using file paths) ────────────────────────────────────────
 
-async function runBrowseSync() {
+async function runBrowse() {
   const suites = [..._selectedSuites];
   if (!suites.length) { showToast('請先在「瀏覽測試」勾選至少一個腳本', 'error'); return; }
 
-  const isDryRun = document.getElementById('robot-dry-run')?.checked ?? false;
+  const isDryRun  = document.getElementById('robot-dry-run-browse')?.checked ?? false;
   const variables = _collectVariables();
 
-  _setRunStatus(true, isDryRun ? '組合指令中…' : `執行 ${suites.length} 個腳本…`, 'btn-run-browse');
-  showToast(isDryRun ? 'Dry-run…' : `Running ${suites.length} suite(s)…`, 'info');
-
+  // Always fetch and show the assembled command preview
+  _setRunStatus(true, '組合指令中…', 'btn-stream-browse');
   try {
-    const data = await API.post('/api/robot/run', { suites, variables, dry_run: isDryRun });
+    const preview = await API.post('/api/robot/run', { suites, variables, dry_run: true });
+    if (preview.ok && preview.command) _showCmdPreview(preview.command, 'browse');
+  } catch { /* preview failure is non-blocking */ }
+  _setRunStatus(false, '', 'btn-stream-browse');
 
-    if (isDryRun && data.ok && data.command) {
-      _showCmdPreview(data.command);
-      showToast('Dry-run 完成', 'success');
-      switchRobotTab('vars');
-    } else if (data.ok) {
-      showToast('Suite 執行完成 ✓', 'success');
-      loadReports();
-    } else {
-      showToast(`執行失敗: ${data.error || `rc=${data.returncode}`}`, 'error');
-    }
-  } catch (e) {
-    showToast(`API 錯誤: ${e}`, 'error');
-  } finally {
-    _setRunStatus(false, '', 'btn-run-browse');
+  if (isDryRun) {
+    showToast('Dry-run 完成', 'success');
+    return;
   }
-}
 
-async function runBrowseStream() {
-  const suites = [..._selectedSuites];
-  if (!suites.length) { showToast('請先在「瀏覽測試」勾選至少一個腳本', 'error'); return; }
-
-  const variables = _collectVariables();
   await _doStreamRun(suites, variables, [], 'btn-stream-browse');
 }
 
@@ -883,6 +1102,13 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId) {
           if (rc === 0) showToast('Robot 測試通過 ✓', 'success');
           else showToast(`Robot 測試失敗 (rc=${rc})`, 'error');
           loadReports();
+          const viewReportBtn = document.createElement('button');
+          viewReportBtn.className = 'btn btn--primary btn--sm';
+          viewReportBtn.style.marginTop = '8px';
+          viewReportBtn.textContent = '查看報告';
+          viewReportBtn.addEventListener('click', () => showPage('reports'));
+          const logEl = document.getElementById('robot-log-console');
+          if (logEl) logEl.appendChild(viewReportBtn);
           return;
         }
         if (msg.error) { appendRobotLog(`[ERROR] ${msg.error}\n`, 'log-fail'); return; }
@@ -911,20 +1137,97 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId) {
 
 // ── Run status helpers ────────────────────────────────────────────────────────
 
+function _syncLogCmdPreview() {
+  // Show the most recently assembled command in the Live Log header area
+  const logWrap  = document.getElementById('robot-log-cmd-wrap');
+  const logPre   = document.getElementById('robot-log-cmd-preview');
+  if (!logWrap || !logPre) return;
+
+  // Try CI preview first, then browse
+  const ciPre    = document.getElementById('robot-cmd-preview-ci');
+  const browsePre = document.getElementById('robot-cmd-preview-browse');
+  const ciWrap   = document.getElementById('robot-cmd-preview-wrap-ci');
+  const browseWrap = document.getElementById('robot-cmd-preview-wrap-browse');
+
+  let cmd = '';
+  if (ciWrap?.style.display !== 'none' && ciPre?.textContent?.trim()) {
+    cmd = ciPre.textContent;
+  } else if (browseWrap?.style.display !== 'none' && browsePre?.textContent?.trim()) {
+    cmd = browsePre.textContent;
+  }
+
+  if (cmd) {
+    logWrap.style.display = 'block';
+    logPre.textContent = cmd;
+  } else {
+    logWrap.style.display = 'none';
+  }
+}
+
 function _setRunStatus(active, text, btnId) {
-  const statusEl  = document.getElementById('robot-run-status');
-  const statusTxt = document.getElementById('robot-run-status-text');
+  // Determine which status element to use based on which btn-row it belongs to
+  const suffix   = btnId.includes('browse') ? 'browse' : '';
+  const statusId = suffix ? 'robot-run-status-browse' : 'robot-run-status';
+  const textId   = suffix ? 'robot-run-status-text-browse' : 'robot-run-status-text';
+  const statusEl  = document.getElementById(statusId);
+  const statusTxt = document.getElementById(textId);
   const btn       = document.getElementById(btnId);
   if (statusEl) statusEl.hidden = !active;
   if (statusTxt) statusTxt.textContent = text;
   if (btn) btn.disabled = active;
 }
 
-function _showCmdPreview(cmd) {
-  const wrap = document.getElementById('robot-cmd-preview-wrap');
-  const el   = document.getElementById('robot-cmd-preview');
-  if (wrap) wrap.style.display = 'block';
-  if (el)   el.textContent = cmd;
+function _formatCmd(cmd) {
+  // Robot: line-break before each --flag
+  return cmd.replace(/\s(--\w)/g, ' \\\n  $1');
+}
+
+function _formatQemuCmd(cmd) {
+  // QEMU: line-break before each -flag (single dash, not inside values)
+  return cmd.replace(/\s(-\w)/g, ' \\\n  $1');
+}
+
+function _showCmdPreview(cmd, suffix) {
+  const wrap = document.getElementById(`robot-cmd-preview-wrap-${suffix}`);
+  const el   = document.getElementById(`robot-cmd-preview-${suffix}`);
+  const hdr  = document.getElementById(`robot-cmd-preview-hdr-${suffix}`);
+  if (!wrap) return;
+
+  wrap.style.display = 'block';
+  if (el) el.textContent = _formatCmd(cmd);
+
+  // Add copy button to header (once)
+  if (hdr && !hdr.querySelector('.cmd-copy-btn')) {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn--ghost btn--xs cmd-copy-btn';
+    copyBtn.textContent = '複製';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+        copyBtn.textContent = '已複製 ✓';
+        setTimeout(() => { copyBtn.textContent = '複製'; }, 2000);
+      } catch {
+        showToast('複製失敗', 'error');
+      }
+    });
+    hdr.appendChild(copyBtn);
+  } else if (hdr) {
+    // Update the raw cmd captured in the copy handler on subsequent calls
+    const copyBtn = hdr.querySelector('.cmd-copy-btn');
+    if (copyBtn) {
+      const newBtn = copyBtn.cloneNode(true);
+      newBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(cmd);
+          newBtn.textContent = '已複製 ✓';
+          setTimeout(() => { newBtn.textContent = '複製'; }, 2000);
+        } catch {
+          showToast('複製失敗', 'error');
+        }
+      });
+      copyBtn.replaceWith(newBtn);
+    }
+  }
 }
 
 // ── Robot log console helpers ─────────────────────────────────────────────────
@@ -1004,11 +1307,37 @@ async function loadReports() {
 
       card.appendChild(header);
 
+      // Stats bar (pass/fail/elapsed)
+      if (r.passed !== null || r.failed !== null || r.elapsed_s !== null) {
+        const statsBar = document.createElement('div');
+        statsBar.className = 'report-stats-bar';
+        statsBar.style.cssText = 'display:flex;gap:12px;padding:4px 0 6px;font-size:0.82rem;flex-wrap:wrap';
+
+        if (r.passed !== null) {
+          const passEl = document.createElement('span');
+          passEl.style.color = r.passed > 0 ? '#48bb78' : 'inherit';
+          passEl.textContent = `\u2705 ${r.passed} passed`;
+          statsBar.appendChild(passEl);
+        }
+        if (r.failed !== null) {
+          const failEl = document.createElement('span');
+          failEl.style.color = r.failed > 0 ? '#fc8181' : 'inherit';
+          failEl.textContent = `\u274c ${r.failed} failed`;
+          statsBar.appendChild(failEl);
+        }
+        if (r.elapsed_s !== null) {
+          const timeEl = document.createElement('span');
+          timeEl.textContent = `\u23f1 ${r.elapsed_s.toFixed(1)}s`;
+          statsBar.appendChild(timeEl);
+        }
+        card.appendChild(statsBar);
+      }
+
       const actions = document.createElement('div');
       actions.className = 'report-actions';
 
       const linkReport = document.createElement('a');
-      linkReport.href = `/reports/${encodeURIComponent(r.report_path)}`;
+      linkReport.href = '/reports/' + r.report_path;
       linkReport.target = '_blank';
       linkReport.rel = 'noopener noreferrer';
       linkReport.className = 'btn btn--ghost btn--sm report-link';
@@ -1016,7 +1345,7 @@ async function loadReports() {
       actions.appendChild(linkReport);
 
       const linkLog = document.createElement('a');
-      linkLog.href = `/reports/${encodeURIComponent(r.log_path)}`;
+      linkLog.href = '/reports/' + r.log_path;
       linkLog.target = '_blank';
       linkLog.rel = 'noopener noreferrer';
       linkLog.className = 'btn btn--ghost btn--sm report-link';
@@ -1039,9 +1368,17 @@ function _bindAutoPreview() {
   document.getElementById('qemu-extra-args')?.addEventListener('input', debouncePreview);
   document.getElementById('qemu-memory')?.addEventListener('input', debouncePreview);
 
-  document.getElementById('robot-dry-run')?.addEventListener('change', (e) => {
-    const wrap = document.getElementById('robot-cmd-preview-wrap');
-    if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+  document.getElementById('robot-dry-run-ci')?.addEventListener('change', (e) => {
+    if (!e.target.checked) {
+      const wrap = document.getElementById('robot-cmd-preview-wrap-ci');
+      if (wrap) wrap.style.display = 'none';
+    }
+  });
+  document.getElementById('robot-dry-run-browse')?.addEventListener('change', (e) => {
+    if (!e.target.checked) {
+      const wrap = document.getElementById('robot-cmd-preview-wrap-browse');
+      if (wrap) wrap.style.display = 'none';
+    }
   });
 }
 
@@ -1051,6 +1388,7 @@ let _previewTimer = null;
 
 async function init() {
   initTerminal();
+  fillDefaultVars();
   await checkBackendHealth();
   await Promise.all([
     loadPresets(),

@@ -182,9 +182,12 @@
             <div class="form-group">
               <div class="log-console-header" style="border-radius:6px 6px 0 0">
                 <span>🔍 Assembled Command Preview</span>
-                <button class="btn btn--ghost btn--xs" onclick="previewCommand()">Preview</button>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn--ghost btn--xs" onclick="previewCommand()">Preview</button>
+                  <button class="btn btn--ghost btn--xs" id="qemu-cmd-copy-btn" onclick="copyQemuCmd()">複製</button>
+                </div>
               </div>
-              <pre id="qemu-cmd-preview" class="log-console" style="height:72px;color:#f6ad55"
+              <pre id="qemu-cmd-preview" class="log-console" style="color:#f6ad55"
                    aria-label="QEMU command preview"># Press Preview or apply a preset to see the assembled command</pre>
             </div>
 
@@ -244,89 +247,16 @@
 
           <!-- ── Main Robot Tabs ──────────────────────────────── -->
           <div class="tab-pills" role="tablist" aria-label="Robot panel sections">
-            <div class="tab-pill active" id="tab-ci"     role="tab" onclick="switchRobotTab('ci')">🚀 CI 預設套件</div>
-            <div class="tab-pill"        id="tab-browse" role="tab" onclick="switchRobotTab('browse')">🔬 瀏覽測試</div>
-            <div class="tab-pill"        id="tab-vars"   role="tab" onclick="switchRobotTab('vars')">⚙ 執行參數</div>
+            <div class="tab-pill active" id="tab-vars"   role="tab" onclick="switchRobotTab('vars')">⚙ 執行參數</div>
+            <div class="tab-pill"        id="tab-ci"     role="tab" onclick="switchRobotTab('ci')">🚀 CI 預設套件</div>
+            <div class="tab-pill"        id="tab-browse" role="tab" onclick="switchRobotTab('browse')">🔬 手動挑選</div>
             <div class="tab-pill"        id="tab-log"    role="tab" onclick="switchRobotTab('log')">📡 Live Log</div>
           </div>
 
-          <!-- ── Section: CI Presets ─────────────────────────── -->
-          <div id="robot-section-ci" class="collapsible-section">
-            <div class="ci-section-header">
-              <p class="section-desc">
-                從預定義的 CI 套件中快速選擇，或組合多個套件一起執行。
-                點擊卡片上的「選取」按鈕將對應測試項目加入執行清單。
-              </p>
-            </div>
-            <div id="ci-cards-grid" class="ci-cards-grid">
-              <div class="ci-card-loading">⏳ 載入 CI 套件中…</div>
-            </div>
-
-            <!-- Selected tests summary for CI mode -->
-            <div id="ci-selection-bar" class="selection-bar hidden" aria-live="polite">
-              <span>
-                已選擇 <span id="ci-selected-count" class="selection-count">0</span> 個測試標籤
-                （將用 <code>--include</code> 模式執行）
-              </span>
-              <span class="selection-clear" onclick="clearCiSelection()" title="Clear selection">✕ 清除</span>
-            </div>
-
-            <!-- CI Action buttons -->
-            <div class="btn-row" style="margin-top:12px">
-              <button id="btn-run-ci" class="btn btn--primary" onclick="runCiSync()">
-                ▶ Run (同步)
-              </button>
-              <button id="btn-stream-ci" class="btn btn--success" onclick="runCiStream()">
-                📡 Stream Run (即時)
-              </button>
-            </div>
-          </div>
-
-          <!-- ── Section: Browse Tests ───────────────────────── -->
-          <div id="robot-section-browse" class="collapsible-section collapsed">
-
-            <!-- Category tabs -->
+          <!-- ── Section: Variables (tab) ─────────────────────── -->
+          <div id="robot-section-vars" class="collapsible-section">
             <div class="form-group">
-              <div class="tree-toolbar">
-                <input id="browse-search" type="text" class="tree-search"
-                       placeholder="🔍 搜尋測試名稱或描述…"
-                       oninput="filterBrowse(this.value)" />
-                <button class="btn btn--ghost btn--xs" onclick="loadCategorized()" title="Refresh">↻</button>
-              </div>
-            </div>
-
-            <!-- Category chips -->
-            <div id="browse-category-chips" class="category-chips" aria-label="按類別篩選"></div>
-
-            <!-- Selection bar -->
-            <div id="browse-selection-bar" class="selection-bar hidden" aria-live="polite">
-              <span>
-                已選擇 <span id="browse-selected-count" class="selection-count">0</span> 個腳本
-              </span>
-              <span class="selection-clear" onclick="clearBrowseSelections()">✕ 清除</span>
-            </div>
-
-            <!-- Test cards -->
-            <div id="browse-test-list" class="test-card-list" role="list"
-                 aria-label="Test cases">
-              <div class="tree-empty">⏳ 載入中…</div>
-            </div>
-
-            <!-- Browse Action buttons -->
-            <div class="btn-row" style="margin-top:12px">
-              <button id="btn-run-browse" class="btn btn--primary" onclick="runBrowseSync()">
-                ▶ Run (同步)
-              </button>
-              <button id="btn-stream-browse" class="btn btn--success" onclick="runBrowseStream()">
-                📡 Stream Run (即時)
-              </button>
-            </div>
-          </div>
-
-          <!-- ── Section: Variables ──────────────────────────── -->
-          <div id="robot-section-vars" class="collapsible-section collapsed">
-            <div class="form-group">
-              <label>Robot 執行參數
+              <label>⚙ Robot 執行參數
                 <span class="hint">— 輸入後按「帶入 QEMU 預設值」快速填入常用設定</span>
               </label>
 
@@ -347,6 +277,26 @@
                          placeholder="••••••••" autocomplete="current-password" />
                 </div>
                 <div class="var-field">
+                  <label class="var-label" for="var-ipmi-pass">IPMI_PASSWORD</label>
+                  <input id="var-ipmi-pass" type="password" class="var-input var-password"
+                         placeholder="••••••••" autocomplete="off" />
+                </div>
+                <div class="var-field">
+                  <label class="var-label" for="var-ssh-port">SSH_PORT</label>
+                  <input id="var-ssh-port" type="text" class="var-input"
+                         placeholder="2222" autocomplete="off" />
+                </div>
+                <div class="var-field">
+                  <label class="var-label" for="var-https-port">HTTPS_PORT</label>
+                  <input id="var-https-port" type="text" class="var-input"
+                         placeholder="2443" autocomplete="off" />
+                </div>
+                <div class="var-field">
+                  <label class="var-label" for="var-ipmi-port">IPMI_PORT</label>
+                  <input id="var-ipmi-port" type="text" class="var-input"
+                         placeholder="2623" autocomplete="off" />
+                </div>
+                <div class="var-field">
                   <label class="var-label" for="var-loglevel">LOG LEVEL</label>
                   <select id="var-loglevel" class="var-input select-input"
                           style="background-image:none;padding-right:8px">
@@ -362,8 +312,8 @@
                       (KEY:value, one per line)
                     </span>
                   </label>
-                  <textarea id="var-extra" class="var-input" rows="3"
-                            placeholder="HTTPS_PORT:2443&#10;SSH_PORT:2222"></textarea>
+                  <textarea id="var-extra" class="var-input" rows="2"
+                            placeholder="REDFISH_SUPPORT_TRANS_STATE:1"></textarea>
                 </div>
               </div>
 
@@ -373,23 +323,125 @@
               </div>
             </div>
 
-            <label class="toggle-label">
-              <input type="checkbox" id="robot-dry-run" />
+          </div>
+
+          <!-- ── Section: CI Presets ─────────────────────────── -->
+          <div id="robot-section-ci" class="collapsible-section collapsed">
+            <div class="ci-section-header">
+              <p class="section-desc">
+                從預定義的 CI 套件中快速選擇，或組合多個套件一起執行。
+                點擊卡片將對應測試項目加入執行清單。
+              </p>
+            </div>
+            <div id="ci-cards-grid" class="ci-cards-grid">
+              <div class="ci-card-loading">⏳ 載入 CI 套件中…</div>
+            </div>
+
+            <!-- Selected tests summary for CI mode -->
+            <div id="ci-selection-bar" class="selection-bar hidden" aria-live="polite">
+              <span>
+                已選擇 <span id="ci-selected-count" class="selection-count">0</span> 個測試標籤
+                （將用 <code>--include</code> 模式執行）
+              </span>
+              <span class="selection-clear" onclick="clearCiSelection()" title="Clear selection">✕ 清除</span>
+            </div>
+
+            <!-- CI Action buttons -->
+            <label class="toggle-label" style="margin-top:10px">
+              <input type="checkbox" id="robot-dry-run-ci" />
               <span>Dry-run（僅預覽指令，不實際執行）</span>
             </label>
-
-            <div id="robot-cmd-preview-wrap" class="form-group" style="display:none">
-              <div class="log-console-header" style="border-radius:6px 6px 0 0">
+            <div class="btn-row" style="margin-top:6px;align-items:center">
+              <button id="btn-stream-ci" class="btn btn--primary" onclick="runCi()">
+                ▶ Run
+              </button>
+              <div id="robot-run-status" class="run-status-inline" aria-live="polite" hidden>
+                <div class="spinner"></div>
+                <span id="robot-run-status-text"></span>
+              </div>
+            </div>
+            <div id="robot-cmd-preview-wrap-ci" style="display:none;margin-top:10px">
+              <div id="robot-cmd-preview-hdr-ci" class="log-console-header" style="border-radius:6px 6px 0 0">
                 <span>🔍 Assembled Robot Command</span>
               </div>
-              <pre id="robot-cmd-preview" class="log-console"
-                   style="height:60px;color:#f6ad55;font-size:0.7rem"
-                   aria-label="Robot command preview"># Press Run to preview the command</pre>
+              <pre id="robot-cmd-preview-ci" class="log-console"
+                   style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
+                   aria-label="Robot command preview"></pre>
             </div>
+
+            <!-- Tag command panel (shown after card selection) -->
+            <div id="ci-tag-cmd-panel" class="ci-tag-cmd-panel" style="display:none"></div>
+          </div>
+
+          <!-- ── Section: Browse Tests ───────────────────────── -->
+          <div id="robot-section-browse" class="collapsible-section collapsed">
+
+            <!-- Category tabs -->
+            <div class="form-group">
+              <div class="tree-toolbar">
+                <input id="browse-search" type="text" class="tree-search"
+                       placeholder="🔍 搜尋測試名稱或描述…"
+                       oninput="filterBrowse(this.value)" />
+                <button class="btn btn--ghost btn--xs" onclick="loadCategorized()" title="Refresh">↻</button>
+              </div>
+            </div>
+
+            <!-- Category chips -->
+            <div id="browse-category-chips" class="category-chips" aria-label="按類別篩選"></div>
+
+            <!-- Select-all + selection bar -->
+            <div id="browse-selection-bar" class="selection-bar" style="margin-bottom:6px" aria-live="polite">
+              <div style="display:flex;gap:10px;align-items:center">
+                <span id="browse-select-all-btn" class="selection-clear" onclick="selectAllBrowse()">☑ 全選</span>
+                <span id="browse-clear-btn" class="selection-clear" onclick="clearCategoryBrowse()">✕ 清除</span>
+              </div>
+              <span>
+                已選擇 <span id="browse-selected-count" class="selection-count">0</span> 個腳本
+              </span>
+            </div>
+
+            <!-- Test cards -->
+            <div id="browse-test-list" class="test-card-list" role="list"
+                 aria-label="Test cases">
+              <div class="tree-empty">⏳ 載入中…</div>
+            </div>
+
+            <!-- Browse Action buttons -->
+            <label class="toggle-label" style="margin-top:10px">
+              <input type="checkbox" id="robot-dry-run-browse" />
+              <span>Dry-run（僅預覽指令，不實際執行）</span>
+            </label>
+            <div class="btn-row" style="margin-top:6px;align-items:center">
+              <button id="btn-stream-browse" class="btn btn--primary" onclick="runBrowse()">
+                ▶ Run
+              </button>
+              <div id="robot-run-status-browse" class="run-status-inline" aria-live="polite" hidden>
+                <div class="spinner"></div>
+                <span id="robot-run-status-text-browse"></span>
+              </div>
+            </div>
+            <div id="robot-cmd-preview-wrap-browse" style="display:none;margin-top:10px">
+              <div id="robot-cmd-preview-hdr-browse" class="log-console-header" style="border-radius:6px 6px 0 0">
+                <span>🔍 Assembled Robot Command</span>
+              </div>
+              <pre id="robot-cmd-preview-browse" class="log-console"
+                   style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
+                   aria-label="Robot command preview"></pre>
+            </div>
+
+            <!-- Browse tag command panel (shown after selection) -->
+            <div id="browse-tag-cmd-panel" class="ci-tag-cmd-panel" style="display:none"></div>
           </div>
 
           <!-- ── Section: Live Log ────────────────────────────── -->
           <div id="robot-section-log" class="collapsible-section collapsed">
+            <div id="robot-log-cmd-wrap" style="display:none;margin-bottom:10px">
+              <div class="log-console-header" style="border-radius:6px 6px 0 0">
+                <span>🔍 Executing Command</span>
+              </div>
+              <pre id="robot-log-cmd-preview" class="log-console"
+                   style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;max-height:100px;overflow-y:auto"></pre>
+            </div>
             <div class="robot-log-wrap">
               <div class="log-console-header">
                 <span>📡 Robot Live Log</span>
@@ -408,12 +460,6 @@
                 <span class="log-info"># 選擇腳本並按 ▶ Stream Run 開始即時輸出…</span>
               </div>
             </div>
-          </div>
-
-          <!-- ── Execution status banner ─────────────────────── -->
-          <div id="robot-run-status" class="run-status" aria-live="polite" hidden>
-            <div class="spinner"></div>
-            <span id="robot-run-status-text">Executing test suite…</span>
           </div>
 
         </div><!-- /panel-body -->

@@ -73,4 +73,5 @@ Redfish-Interop-Validator/
 Redfish-JsonSchema-ResponseValidator/
 Redfish-Protocol-Validator/
 Redfish-Reference-Checker/
+Redfish-Service-Validator/
 Redfish-Usecase-Checkers/

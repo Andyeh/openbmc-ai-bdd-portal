@@ -9,7 +9,9 @@ Security measures:
 import asyncio
 import re
 import subprocess
+import sys
 import uuid
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -305,6 +307,54 @@ _CATEGORY_DISPLAY = {
 }
 
 
+def _parse_output_xml(xml_path: Path) -> dict:
+    """
+    Parse Robot Framework output.xml and return pass/fail counts and elapsed time.
+    Returns {"passed": int|None, "failed": int|None, "elapsed_s": float|None}.
+    """
+    try:
+        tree = ET.parse(str(xml_path))
+        root = tree.getroot()
+
+        passed = None
+        failed = None
+        elapsed_s = None
+
+        # Parse pass/fail from total statistics
+        stat = root.find(".//statistics/total/stat")
+        if stat is not None:
+            try:
+                passed = int(stat.get("pass", 0))
+            except (TypeError, ValueError):
+                passed = None
+            try:
+                failed = int(stat.get("fail", 0))
+            except (TypeError, ValueError):
+                failed = None
+
+        # Parse elapsed time from suite/status
+        suite_status = root.find("suite/status")
+        if suite_status is not None:
+            elapsed_raw = suite_status.get("elapsed")
+            if elapsed_raw is not None:
+                try:
+                    elapsed_s = float(elapsed_raw) / 1000.0
+                except (TypeError, ValueError):
+                    # Fallback: compute from starttime/endtime
+                    try:
+                        fmt = "%Y%m%d %H:%M:%S.%f"
+                        start = datetime.strptime(suite_status.get("starttime", ""), fmt)
+                        end   = datetime.strptime(suite_status.get("endtime",   ""), fmt)
+                        elapsed_s = (end - start).total_seconds()
+                    except Exception:
+                        elapsed_s = None
+
+        return {"passed": passed, "failed": failed, "elapsed_s": elapsed_s}
+
+    except Exception:
+        return {"passed": None, "failed": None, "elapsed_s": None}
+
+
 class RobotService:
     """Execute Robot Framework suites and manage reports."""
 
@@ -332,18 +382,22 @@ class RobotService:
         return suites
 
     def list_reports(self) -> list[dict]:
-        out_dir = settings.robot_output_dir
+        out_dir = settings.robot_output_dir.resolve()
         if not out_dir.exists():
             return []
         reports = []
         for html in sorted(out_dir.rglob("report.html"), reverse=True):
             ts = datetime.fromtimestamp(html.stat().st_mtime)
-            reports.append({
+            rel_dir = html.parent.relative_to(out_dir)
+            stats = _parse_output_xml(html.parent / "output.xml")
+            entry = {
                 "name":        html.parent.name,
-                "report_path": str(html),
-                "log_path":    str(html.parent / "log.html"),
+                "report_path": str(rel_dir / "report.html"),
+                "log_path":    str(rel_dir / "log.html"),
                 "modified":    ts.isoformat(),
-            })
+            }
+            entry.update(stats)
+            reports.append(entry)
         return reports
 
     def list_categorized(self) -> list[dict]:
@@ -457,7 +511,7 @@ class RobotService:
             resolved_suites.append(resolved)
 
         cmd = [
-            "python", "-m", "robot",
+            sys.executable, "-m", "robot",
             "--loglevel",  settings.robot_log_level,
             "--outputdir", str(out_dir),
             "--output",    "output.xml",
