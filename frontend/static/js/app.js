@@ -101,6 +101,14 @@ function applyPreset(presetId) {
   if (p.host_https_port) document.getElementById('port-https').value = p.host_https_port;
   if (p.host_ipmi_port)  document.getElementById('port-ipmi').value  = p.host_ipmi_port;
 
+  if (p.use_docker !== undefined) {
+    const cb = document.getElementById('use-docker');
+    if (cb) {
+      cb.checked = p.use_docker;
+      cb.dispatchEvent(new Event('change'));
+    }
+  }
+
   showToast(`Preset "${p.label}" applied`, 'info');
   previewCommand();
 }
@@ -278,8 +286,9 @@ async function stopQemu() {
 
 // ── WebSocket log streaming (xterm.js Interactive Terminal) ──────────────────
 
-let _qemuWs = null;
-let term = null;
+let _qemuWs   = null;
+let term       = null;
+let _fitAddon  = null;
 
 function _setWsBadge(state) {
   const badge = document.getElementById('ws-status-badge');
@@ -309,7 +318,20 @@ function initTerminal() {
     lineHeight: 1.2,
   });
 
+  // FitAddon: auto-size cols/rows to match the container's pixel dimensions
+  if (window.FitAddon) {
+    _fitAddon = new window.FitAddon.FitAddon();
+    term.loadAddon(_fitAddon);
+  }
+
   term.open(termContainer);
+
+  if (_fitAddon) {
+    _fitAddon.fit();
+    // Re-fit whenever the container is resized
+    new ResizeObserver(() => _fitAddon.fit()).observe(termContainer);
+  }
+
   term.writeln('\x1b[33m# Waiting for QEMU to start...\x1b[0m');
 
   term.onData(data => {
@@ -361,11 +383,19 @@ let _currentRunId    = null;
 // ── Robot Tab switching ───────────────────────────────────────────────────────
 
 function switchRobotTab(tab) {
-  ['vars', 'ci', 'browse', 'log'].forEach(t => {
+  ['ci', 'browse', 'log'].forEach(t => {
     document.getElementById(`robot-section-${t}`)?.classList.toggle('collapsed', t !== tab);
     document.getElementById(`tab-${t}`)?.classList.toggle('active', t === tab);
   });
   if (tab === 'log') _syncLogCmdPreview();
+}
+
+function toggleVarsSection() {
+  const content = document.getElementById('robot-vars-content');
+  if (!content) return;
+  const collapsed = content.classList.toggle('collapsed');
+  const icon = document.getElementById('vars-toggle-icon');
+  if (icon) icon.textContent = collapsed ? '▶' : '▲';
 }
 
 // ── CI Preset Cards ───────────────────────────────────────────────────────────
@@ -559,12 +589,10 @@ function _renderCiTagCmdPanel() {
 function _updateCiSelectionBar() {
   const bar   = document.getElementById('ci-selection-bar');
   const count = document.getElementById('ci-selected-count');
-  const badge = document.getElementById('selected-count-badge');
   const n = _selectedCiIncludes.size;
 
   bar.classList.toggle('hidden', n === 0);
   if (count) count.textContent = String(n);
-  if (badge) badge.textContent = String(n + _selectedTests.size);
 }
 
 function clearCiSelection() {
@@ -789,10 +817,8 @@ function filterBrowse(query) {
 
 function _updateBrowseSelectionBar() {
   const count = document.getElementById('browse-selected-count');
-  const badge = document.getElementById('selected-count-badge');
   const n = _selectedTests.size;   // test-case count (not unique-file count)
   if (count) count.textContent = String(n);
-  if (badge) badge.textContent = String(n + _selectedCiIncludes.size);
 }
 
 function selectAllBrowse() {
@@ -1106,7 +1132,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
           _setRobotWsBadge('off');
           if (rc === 0) showToast('Robot 測試通過 ✓', 'success');
           else showToast(`Robot 測試失敗 (rc=${rc})`, 'error');
-          loadReports();
+          loadReports(true);
           const viewReportBtn = document.createElement('button');
           viewReportBtn.className = 'btn btn--primary btn--sm';
           viewReportBtn.style.marginTop = '8px';
@@ -1278,98 +1304,113 @@ function _setRobotWsBadge(state) {
 
 // ── Reports ───────────────────────────────────────────────────────────────────
 
-async function loadReports() {
-  try {
-    const data = await API.get('/api/robot/reports');
-    const list = document.getElementById('report-list');
+let _reportsCache = null;   // null = never fetched; [] or [...] = fetched
 
-    if (!data.reports?.length) {
-      list.replaceChildren();
-      const empty = document.createElement('div');
-      empty.className = 'report-empty';
-      empty.textContent = '尚無報告。執行測試套件後報告將顯示於此。';
-      list.appendChild(empty);
-      return;
+function _renderReportList(reports, list) {
+  list.replaceChildren();
+  if (!reports.length) {
+    const empty = document.createElement('div');
+    empty.className = 'report-empty';
+    empty.textContent = '尚無報告。執行測試套件後報告將顯示於此。';
+    list.appendChild(empty);
+    return;
+  }
+  reports.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'report-card';
+
+    const header = document.createElement('div');
+    header.className = 'report-card-header';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'report-name';
+    nameSpan.textContent = `📄 ${r.name}`;
+    header.appendChild(nameSpan);
+
+    const tsSpan = document.createElement('span');
+    tsSpan.className = 'report-timestamp';
+    tsSpan.textContent = r.modified;
+    header.appendChild(tsSpan);
+
+    card.appendChild(header);
+
+    if (r.passed !== null || r.failed !== null || r.elapsed_s !== null) {
+      const statsBar = document.createElement('div');
+      statsBar.className = 'report-stats-bar';
+      statsBar.style.cssText = 'display:flex;gap:12px;padding:4px 0 6px;font-size:0.82rem;flex-wrap:wrap';
+
+      if (r.passed !== null) {
+        const passEl = document.createElement('span');
+        passEl.style.color = r.passed > 0 ? '#48bb78' : 'inherit';
+        passEl.textContent = `\u2705 ${r.passed} passed`;
+        statsBar.appendChild(passEl);
+      }
+      if (r.failed !== null) {
+        const failEl = document.createElement('span');
+        failEl.style.color = r.failed > 0 ? '#fc8181' : 'inherit';
+        failEl.textContent = `\u274c ${r.failed} failed`;
+        statsBar.appendChild(failEl);
+      }
+      if (r.elapsed_s !== null) {
+        const timeEl = document.createElement('span');
+        const s = r.elapsed_s;
+        const timeStr = s >= 60
+          ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`
+          : `${s.toFixed(1)}s`;
+        timeEl.textContent = `\u23f1 ${timeStr}`;
+        statsBar.appendChild(timeEl);
+      }
+      card.appendChild(statsBar);
     }
 
-    list.replaceChildren();
-    data.reports.forEach(r => {
-      const card = document.createElement('div');
-      card.className = 'report-card';
+    const actions = document.createElement('div');
+    actions.className = 'report-actions';
 
-      const header = document.createElement('div');
-      header.className = 'report-card-header';
+    const linkReport = document.createElement('a');
+    linkReport.href = '/reports/' + r.report_path;
+    linkReport.target = '_blank';
+    linkReport.rel = 'noopener noreferrer';
+    linkReport.className = 'btn btn--ghost btn--sm report-link';
+    linkReport.textContent = '🌐 HTML Report';
+    actions.appendChild(linkReport);
 
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'report-name';
-      nameSpan.textContent = `📄 ${r.name}`;
-      header.appendChild(nameSpan);
+    const linkLog = document.createElement('a');
+    linkLog.href = '/reports/' + r.log_path;
+    linkLog.target = '_blank';
+    linkLog.rel = 'noopener noreferrer';
+    linkLog.className = 'btn btn--ghost btn--sm report-link';
+    linkLog.textContent = '📋 Full Log';
+    actions.appendChild(linkLog);
 
-      const tsSpan = document.createElement('span');
-      tsSpan.className = 'report-timestamp';
-      tsSpan.textContent = r.modified;
-      header.appendChild(tsSpan);
+    if (r.allure_path) {
+      const linkAllure = document.createElement('a');
+      linkAllure.href = '/reports/' + r.allure_path;
+      linkAllure.target = '_blank';
+      linkAllure.rel = 'noopener noreferrer';
+      linkAllure.className = 'btn btn--primary btn--sm report-link';
+      linkAllure.textContent = '🔬 Allure 報告';
+      actions.appendChild(linkAllure);
+    }
 
-      card.appendChild(header);
+    card.appendChild(actions);
+    list.appendChild(card);
+  });
+}
 
-      // Stats bar (pass/fail/elapsed)
-      if (r.passed !== null || r.failed !== null || r.elapsed_s !== null) {
-        const statsBar = document.createElement('div');
-        statsBar.className = 'report-stats-bar';
-        statsBar.style.cssText = 'display:flex;gap:12px;padding:4px 0 6px;font-size:0.82rem;flex-wrap:wrap';
+async function loadReports(force = false) {
+  const list = document.getElementById('report-list');
 
-        if (r.passed !== null) {
-          const passEl = document.createElement('span');
-          passEl.style.color = r.passed > 0 ? '#48bb78' : 'inherit';
-          passEl.textContent = `\u2705 ${r.passed} passed`;
-          statsBar.appendChild(passEl);
-        }
-        if (r.failed !== null) {
-          const failEl = document.createElement('span');
-          failEl.style.color = r.failed > 0 ? '#fc8181' : 'inherit';
-          failEl.textContent = `\u274c ${r.failed} failed`;
-          statsBar.appendChild(failEl);
-        }
-        if (r.elapsed_s !== null) {
-          const timeEl = document.createElement('span');
-          timeEl.textContent = `\u23f1 ${r.elapsed_s.toFixed(1)}s`;
-          statsBar.appendChild(timeEl);
-        }
-        card.appendChild(statsBar);
-      }
+  // Return cached data instantly on repeat visits (no spinner)
+  if (!force && _reportsCache !== null) {
+    _renderReportList(_reportsCache, list);
+    return;
+  }
 
-      const actions = document.createElement('div');
-      actions.className = 'report-actions';
-
-      const linkReport = document.createElement('a');
-      linkReport.href = '/reports/' + r.report_path;
-      linkReport.target = '_blank';
-      linkReport.rel = 'noopener noreferrer';
-      linkReport.className = 'btn btn--ghost btn--sm report-link';
-      linkReport.textContent = '🌐 HTML Report';
-      actions.appendChild(linkReport);
-
-      const linkLog = document.createElement('a');
-      linkLog.href = '/reports/' + r.log_path;
-      linkLog.target = '_blank';
-      linkLog.rel = 'noopener noreferrer';
-      linkLog.className = 'btn btn--ghost btn--sm report-link';
-      linkLog.textContent = '📋 Full Log';
-      actions.appendChild(linkLog);
-
-      if (r.allure_path) {
-        const linkAllure = document.createElement('a');
-        linkAllure.href = '/reports/' + r.allure_path;
-        linkAllure.target = '_blank';
-        linkAllure.rel = 'noopener noreferrer';
-        linkAllure.className = 'btn btn--primary btn--sm report-link';
-        linkAllure.textContent = '🔬 Allure 報告';
-        actions.appendChild(linkAllure);
-      }
-
-      card.appendChild(actions);
-      list.appendChild(card);
-    });
+  list.innerHTML = '<div class="report-loading"><div class="report-loading-spinner"></div><span>載入報告中…</span></div>';
+  try {
+    const data = await API.get('/api/robot/reports');
+    _reportsCache = data.reports ?? [];
+    _renderReportList(_reportsCache, list);
   } catch {
     showToast('Failed to load reports', 'error');
   }
@@ -1382,19 +1423,8 @@ function _bindAutoPreview() {
   document.getElementById('qemu-machine')?.addEventListener('input', debouncePreview);
   document.getElementById('qemu-extra-args')?.addEventListener('input', debouncePreview);
   document.getElementById('qemu-memory')?.addEventListener('input', debouncePreview);
-
-  document.getElementById('robot-dry-run-ci')?.addEventListener('change', (e) => {
-    if (!e.target.checked) {
-      const wrap = document.getElementById('robot-cmd-preview-wrap-ci');
-      if (wrap) wrap.style.display = 'none';
-    }
-  });
-  document.getElementById('robot-dry-run-browse')?.addEventListener('change', (e) => {
-    if (!e.target.checked) {
-      const wrap = document.getElementById('robot-cmd-preview-wrap-browse');
-      if (wrap) wrap.style.display = 'none';
-    }
-  });
+  document.getElementById('qemu-binary')?.addEventListener('input', debouncePreview);
+  document.getElementById('qemu-use-nic')?.addEventListener('change', debouncePreview);
 }
 
 let _previewTimer = null;
@@ -1413,6 +1443,18 @@ async function init() {
     loadCategorized(),
   ]);
   _bindAutoPreview();
+
+  // Collapse vars section when user interacts with anything below it in the robot panel
+  document.getElementById('robot-panel')?.addEventListener('click', (e) => {
+    const varsSection = document.getElementById('robot-section-vars');
+    if (!varsSection || varsSection.contains(e.target)) return;
+    const content = document.getElementById('robot-vars-content');
+    if (content && !content.classList.contains('collapsed')) {
+      content.classList.add('collapsed');
+      const icon = document.getElementById('vars-toggle-icon');
+      if (icon) icon.textContent = '▶';
+    }
+  }, true);  // capture phase so it fires before child handlers
 
   setInterval(refreshQemuStatus,   5000);
   setInterval(checkBackendHealth, 30000);

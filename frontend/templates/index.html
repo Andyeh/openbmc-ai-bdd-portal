@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,12 +8,16 @@
   <title>OpenBMC AI-BDD Portal</title>
   <link rel="icon" type="image/png" href="/static/assets/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
   <!-- xterm.js for beautiful interactive serial terminal -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
+
 <body>
 
   <!-- ── Navigation ───────────────────────────────────────────── -->
@@ -25,19 +30,16 @@
 
       <!-- Page tabs -->
       <div class="page-tabs" role="tablist" aria-label="主要頁面">
-        <button class="page-tab active" id="ptab-qemu"
-                role="tab" aria-selected="true" aria-controls="page-qemu"
-                onclick="showPage('qemu')">
+        <button class="page-tab active" id="ptab-qemu" role="tab" aria-selected="true" aria-controls="page-qemu"
+          onclick="showPage('qemu')">
           🖥 QEMU
         </button>
-        <button class="page-tab" id="ptab-robot"
-                role="tab" aria-selected="false" aria-controls="page-robot"
-                onclick="showPage('robot')">
+        <button class="page-tab" id="ptab-robot" role="tab" aria-selected="false" aria-controls="page-robot"
+          onclick="showPage('robot')">
           🤖 Robot 測試
         </button>
-        <button class="page-tab" id="ptab-reports"
-                role="tab" aria-selected="false" aria-controls="page-reports"
-                onclick="showPage('reports')">
+        <button class="page-tab" id="ptab-reports" role="tab" aria-selected="false" aria-controls="page-reports"
+          onclick="showPage('reports')">
           📊 報告
         </button>
       </div>
@@ -90,20 +92,18 @@
             <div class="form-group">
               <label for="qemu-binary">QEMU Binary Path</label>
               <input id="qemu-binary" type="text" class="text-input font-mono"
-                     placeholder="/path/to/qemu-system-aarch64" />
+                placeholder="/path/to/qemu-system-aarch64" />
             </div>
 
             <!-- Machine + Memory -->
             <div class="form-row">
               <div class="form-group" style="flex:2">
                 <label for="qemu-machine">-machine</label>
-                <input id="qemu-machine" type="text" class="text-input"
-                       placeholder="ast2700a1-evb" />
+                <input id="qemu-machine" type="text" class="text-input" placeholder="ast2700a1-evb" />
               </div>
               <div class="form-group" style="flex:1">
                 <label for="qemu-memory">-m (Memory)</label>
-                <input id="qemu-memory" type="text" class="text-input"
-                       placeholder="1G" value="1G" />
+                <input id="qemu-memory" type="text" class="text-input" placeholder="1G" value="1G" />
               </div>
             </div>
 
@@ -119,14 +119,13 @@
             <div class="form-group">
               <label for="qemu-extra-args">Extra QEMU Args</label>
               <input id="qemu-extra-args" type="text" class="text-input font-mono"
-                     placeholder="-serial mon:stdio -serial null -display none" />
+                placeholder="-serial mon:stdio -serial null -display none" />
             </div>
 
             <!-- Options -->
             <div class="options-row">
               <label class="toggle-label">
-                <input type="checkbox" id="qemu-use-nic" checked
-                       onchange="toggleNicPorts(this.checked)" />
+                <input type="checkbox" id="qemu-use-nic" checked onchange="toggleNicPorts(this.checked)" />
                 <span>附加 NIC (port forwarding)</span>
               </label>
 
@@ -135,23 +134,20 @@
                   <div class="port-field">
                     <label for="port-ssh" class="port-label">SSH host port
                       <span class="hint">→ guest :22</span></label>
-                    <input id="port-ssh" type="number" class="text-input port-input"
-                           value="2222" min="1024" max="65535"
-                           oninput="debouncePreview()" />
+                    <input id="port-ssh" type="number" class="text-input port-input" value="2222" min="1024" max="65535"
+                      oninput="debouncePreview()" />
                   </div>
                   <div class="port-field">
                     <label for="port-https" class="port-label">HTTPS host port
                       <span class="hint">→ guest :443</span></label>
-                    <input id="port-https" type="number" class="text-input port-input"
-                           value="2443" min="1024" max="65535"
-                           oninput="debouncePreview()" />
+                    <input id="port-https" type="number" class="text-input port-input" value="2443" min="1024"
+                      max="65535" oninput="debouncePreview()" />
                   </div>
                   <div class="port-field">
                     <label for="port-ipmi" class="port-label">IPMI/UDP host port
                       <span class="hint">→ guest :623</span></label>
-                    <input id="port-ipmi" type="number" class="text-input port-input"
-                           value="2623" min="1024" max="65535"
-                           oninput="debouncePreview()" />
+                    <input id="port-ipmi" type="number" class="text-input port-input" value="2623" min="1024"
+                      max="65535" oninput="debouncePreview()" />
                   </div>
                 </div>
               </div>
@@ -163,7 +159,7 @@
 
               <label class="toggle-label" style="margin-top:4px">
                 <input type="checkbox" id="qemu-use-docker" checked
-                       onchange="toggleDockerInput(this.checked); debouncePreview()" />
+                  onchange="toggleDockerInput(this.checked); debouncePreview()" />
                 <span>🐳 在 Docker 容器內執行 QEMU</span>
               </label>
               <div id="docker-image-group" class="nic-port-group" style="padding-left:1.4rem">
@@ -171,9 +167,8 @@
                   <label for="docker-image" class="port-label">Docker Image
                     <span class="hint">必須包含 QEMU binary 及相關函式庫</span>
                   </label>
-                  <input id="docker-image" type="text" class="text-input font-mono"
-                         value="crops/poky:ubuntu-22.04"
-                         oninput="debouncePreview()" />
+                  <input id="docker-image" type="text" class="text-input font-mono" value="crops/poky:ubuntu-22.04"
+                    oninput="debouncePreview()" />
                 </div>
               </div>
             </div>
@@ -182,13 +177,10 @@
             <div class="form-group">
               <div class="log-console-header" style="border-radius:6px 6px 0 0">
                 <span>🔍 Assembled Command Preview</span>
-                <div style="display:flex;gap:6px">
-                  <button class="btn btn--ghost btn--xs" onclick="previewCommand()">Preview</button>
-                  <button class="btn btn--ghost btn--xs" id="qemu-cmd-copy-btn" onclick="copyQemuCmd()">複製</button>
-                </div>
+                <button class="btn btn--ghost btn--xs" id="qemu-cmd-copy-btn" onclick="copyQemuCmd()">複製</button>
               </div>
               <pre id="qemu-cmd-preview" class="log-console" style="color:#f6ad55"
-                   aria-label="QEMU command preview"># Press Preview or apply a preset to see the assembled command</pre>
+                aria-label="QEMU command preview"># 選擇 Image 或套用 Preset 後自動更新</pre>
             </div>
 
             <!-- Action buttons -->
@@ -216,8 +208,7 @@
                   <button class="btn btn--ghost btn--xs" onclick="clearLog()">Clear</button>
                 </div>
               </div>
-              <div id="qemu-terminal" class="log-console qemu-terminal-full"
-                   aria-label="QEMU serial console log"></div>
+              <div id="qemu-terminal" class="log-console qemu-terminal-full" aria-label="QEMU serial console log"></div>
             </div>
           </div>
 
@@ -236,70 +227,57 @@
             <span class="panel-icon">🤖</span> Robot Framework 測試中心
           </h2>
           <div style="display:flex;align-items:center;gap:8px">
-            <span class="panel-badge panel-badge--info">
-              已選 <span id="selected-count-badge">0</span> 個測試
-            </span>
             <span id="robot-ws-badge" class="ws-badge ws-badge--off">WS OFF</span>
           </div>
         </div>
 
         <div class="panel-body">
 
-          <!-- ── Main Robot Tabs ──────────────────────────────── -->
-          <div class="tab-pills" role="tablist" aria-label="Robot panel sections">
-            <div class="tab-pill active" id="tab-vars"   role="tab" onclick="switchRobotTab('vars')">⚙ 執行參數</div>
-            <div class="tab-pill"        id="tab-ci"     role="tab" onclick="switchRobotTab('ci')">🚀 CI 預設套件</div>
-            <div class="tab-pill"        id="tab-browse" role="tab" onclick="switchRobotTab('browse')">🔬 手動挑選</div>
-            <div class="tab-pill"        id="tab-log"    role="tab" onclick="switchRobotTab('log')">📡 Live Log</div>
-          </div>
-
-          <!-- ── Section: Variables (tab) ─────────────────────── -->
-          <div id="robot-section-vars" class="collapsible-section">
-            <div class="form-group">
-              <label>⚙ Robot 執行參數
+          <!-- ── Section: Variables (collapsible, auto-hides on tab click) ── -->
+          <div id="robot-section-vars">
+            <div class="vars-section-header" onclick="toggleVarsSection()" title="點擊展開/摺疊">
+              <span>⚙ Robot 執行參數
                 <span class="hint">— 輸入後按「帶入 QEMU 預設值」快速填入常用設定</span>
-              </label>
+              </span>
+              <span id="vars-toggle-icon" class="vars-toggle-icon">▲</span>
+            </div>
+            <div id="robot-vars-content" class="collapsible-section">
 
               <div class="vars-grid">
                 <div class="var-field">
                   <label class="var-label" for="var-host">OPENBMC_HOST</label>
-                  <input id="var-host" type="text" class="var-input"
-                         placeholder="192.168.7.2" autocomplete="off" />
+                  <input id="var-host" type="text" class="var-input" placeholder="192.168.7.2" autocomplete="off" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-user">OPENBMC_USERNAME</label>
-                  <input id="var-user" type="text" class="var-input"
-                         placeholder="root" autocomplete="off" />
+                  <input id="var-user" type="text" class="var-input" placeholder="root" autocomplete="off" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-pass">OPENBMC_PASSWORD</label>
-                  <input id="var-pass" type="password" class="var-input var-password"
-                         placeholder="••••••••" autocomplete="current-password" />
+                  <input id="var-pass" type="password" class="var-input var-password" placeholder="••••••••"
+                    autocomplete="current-password" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-ipmi-pass">IPMI_PASSWORD</label>
-                  <input id="var-ipmi-pass" type="password" class="var-input var-password"
-                         placeholder="••••••••" autocomplete="off" />
+                  <input id="var-ipmi-pass" type="password" class="var-input var-password" placeholder="••••••••"
+                    autocomplete="off" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-ssh-port">SSH_PORT</label>
-                  <input id="var-ssh-port" type="text" class="var-input"
-                         placeholder="2222" autocomplete="off" />
+                  <input id="var-ssh-port" type="text" class="var-input" placeholder="2222" autocomplete="off" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-https-port">HTTPS_PORT</label>
-                  <input id="var-https-port" type="text" class="var-input"
-                         placeholder="2443" autocomplete="off" />
+                  <input id="var-https-port" type="text" class="var-input" placeholder="2443" autocomplete="off" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-ipmi-port">IPMI_PORT</label>
-                  <input id="var-ipmi-port" type="text" class="var-input"
-                         placeholder="2623" autocomplete="off" />
+                  <input id="var-ipmi-port" type="text" class="var-input" placeholder="2623" autocomplete="off" />
                 </div>
                 <div class="var-field">
                   <label class="var-label" for="var-loglevel">LOG LEVEL</label>
                   <select id="var-loglevel" class="var-input select-input"
-                          style="background-image:none;padding-right:8px">
+                    style="background-image:none;padding-right:8px">
                     <option value="INFO" selected>INFO</option>
                     <option value="DEBUG">DEBUG</option>
                     <option value="TRACE">TRACE</option>
@@ -313,7 +291,7 @@
                     </span>
                   </label>
                   <textarea id="var-extra" class="var-input" rows="2"
-                            placeholder="REDFISH_SUPPORT_TRANS_STATE:1"></textarea>
+                    placeholder="REDFISH_SUPPORT_TRANS_STATE:1"></textarea>
                 </div>
               </div>
 
@@ -321,12 +299,18 @@
                 <button class="btn btn--preset btn--xs" onclick="fillDefaultVars()">⚡ 帶入 QEMU 預設值</button>
                 <button class="btn btn--ghost btn--xs" onclick="clearVars()">✕ 清空</button>
               </div>
-            </div>
+            </div><!-- /robot-vars-content -->
+          </div>
 
+          <!-- ── Main Robot Tabs ──────────────────────────────── -->
+          <div class="tab-pills" role="tablist" aria-label="Robot panel sections">
+            <div class="tab-pill active" id="tab-ci" role="tab" onclick="switchRobotTab('ci')">🚀 CI 預設套件</div>
+            <div class="tab-pill" id="tab-browse" role="tab" onclick="switchRobotTab('browse')">🔬 手動挑選</div>
+            <div class="tab-pill" id="tab-log" role="tab" onclick="switchRobotTab('log')">📡 Live Log</div>
           </div>
 
           <!-- ── Section: CI Presets ─────────────────────────── -->
-          <div id="robot-section-ci" class="collapsible-section collapsed">
+          <div id="robot-section-ci" class="collapsible-section">
             <div class="ci-section-header">
               <p class="section-desc">
                 從預定義的 CI 套件中快速選擇，或組合多個套件一起執行。
@@ -365,8 +349,8 @@
                 <span>🔍 Assembled Robot Command</span>
               </div>
               <pre id="robot-cmd-preview-ci" class="log-console"
-                   style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
-                   aria-label="Robot command preview"></pre>
+                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
+                aria-label="Robot command preview"></pre>
             </div>
 
             <!-- Tag command panel (shown after card selection) -->
@@ -379,9 +363,8 @@
             <!-- Category tabs -->
             <div class="form-group">
               <div class="tree-toolbar">
-                <input id="browse-search" type="text" class="tree-search"
-                       placeholder="🔍 搜尋測試名稱或描述…"
-                       oninput="filterBrowse(this.value)" />
+                <input id="browse-search" type="text" class="tree-search" placeholder="🔍 搜尋測試名稱或描述…"
+                  oninput="filterBrowse(this.value)" />
                 <button class="btn btn--ghost btn--xs" onclick="loadCategorized()" title="Refresh">↻</button>
               </div>
             </div>
@@ -401,8 +384,7 @@
             </div>
 
             <!-- Test cards -->
-            <div id="browse-test-list" class="test-card-list" role="list"
-                 aria-label="Test cases">
+            <div id="browse-test-list" class="test-card-list" role="list" aria-label="Test cases">
               <div class="tree-empty">⏳ 載入中…</div>
             </div>
 
@@ -425,8 +407,8 @@
                 <span>🔍 Assembled Robot Command</span>
               </div>
               <pre id="robot-cmd-preview-browse" class="log-console"
-                   style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
-                   aria-label="Robot command preview"></pre>
+                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
+                aria-label="Robot command preview"></pre>
             </div>
 
             <!-- Browse tag command panel (shown after selection) -->
@@ -440,7 +422,7 @@
                 <span>🔍 Executing Command</span>
               </div>
               <pre id="robot-log-cmd-preview" class="log-console"
-                   style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;max-height:100px;overflow-y:auto"></pre>
+                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;max-height:100px;overflow-y:auto"></pre>
             </div>
             <div class="robot-log-wrap">
               <div class="log-console-header">
@@ -455,9 +437,8 @@
               <div id="robot-progress-wrap" class="progress-wrap hidden">
                 <div id="robot-progress-bar" class="progress-bar" style="width:0%"></div>
               </div>
-              <div id="robot-log-console" aria-label="Robot Framework live log output"
-                   aria-live="polite">
-                <span class="log-info"># 選擇腳本並按 ▶ Stream Run 開始即時輸出…</span>
+              <div id="robot-log-console" aria-label="Robot Framework live log output" aria-live="polite">
+                <span class="log-info"># 在「CI 預設套件」或「手動挑選」分頁按 ▶ Run 後，即時輸出將顯示於此…</span>
               </div>
             </div>
           </div>
@@ -476,7 +457,7 @@
           <h2 id="report-heading" class="panel-title">
             <span class="panel-icon">📊</span> 測試報告
           </h2>
-          <button class="btn btn--ghost btn--sm" onclick="loadReports()">↻ Refresh</button>
+          <button class="btn btn--ghost btn--sm" onclick="loadReports(true)">↻ Refresh</button>
         </div>
 
         <div class="panel-body">
@@ -494,4 +475,5 @@
 
   <script src="/static/js/app.js"></script>
 </body>
+
 </html>

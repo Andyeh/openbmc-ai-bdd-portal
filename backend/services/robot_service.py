@@ -334,21 +334,18 @@ def _parse_output_xml(xml_path: Path) -> dict:
                 failed = None
 
         # Parse elapsed time from suite/status
+        # schemaversion >= 5 (RF 5.x+): elapsed is in seconds (float)
+        # schemaversion <  5 (RF 4.x):  elapsed was in milliseconds
+        schema_ver = int(root.get("schemaversion", "4"))
         suite_status = root.find("suite/status")
         if suite_status is not None:
             elapsed_raw = suite_status.get("elapsed")
             if elapsed_raw is not None:
                 try:
-                    elapsed_s = float(elapsed_raw) / 1000.0
+                    elapsed_val = float(elapsed_raw)
+                    elapsed_s = elapsed_val if schema_ver >= 5 else elapsed_val / 1000.0
                 except (TypeError, ValueError):
-                    # Fallback: compute from starttime/endtime
-                    try:
-                        fmt = "%Y%m%d %H:%M:%S.%f"
-                        start = datetime.strptime(suite_status.get("starttime", ""), fmt)
-                        end   = datetime.strptime(suite_status.get("endtime",   ""), fmt)
-                        elapsed_s = (end - start).total_seconds()
-                    except Exception:
-                        elapsed_s = None
+                    elapsed_s = None
 
         return {"passed": passed, "failed": failed, "elapsed_s": elapsed_s}
 
@@ -597,7 +594,7 @@ class RobotService:
                 cmd,            # list — avoids shell injection; shell=False (default)
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=settings.robot_run_timeout,
             )
             # Best-effort Allure generation (sync subprocess, short-lived)
             allure_results = out_dir / "allure-results"
@@ -606,7 +603,7 @@ class RobotService:
                     subprocess.run(
                         ["allure", "generate", str(allure_results),
                          "-o", str(out_dir / "allure-report"), "--clean"],
-                        capture_output=True, timeout=120,
+                        capture_output=True, timeout=settings.robot_allure_timeout,
                     )
                 except (FileNotFoundError, subprocess.TimeoutExpired):
                     pass
@@ -704,7 +701,7 @@ class RobotService:
                 await self._generate_allure_report(out_dir)
 
             # Clean up run entry after a grace period
-            await asyncio.sleep(300)
+            await asyncio.sleep(settings.robot_cleanup_grace_period)
             _active_runs.pop(run_id, None)
 
     def get_run_info(self, run_id: str) -> Optional[dict]:

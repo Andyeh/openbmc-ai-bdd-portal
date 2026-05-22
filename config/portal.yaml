@@ -1,0 +1,81 @@
+# ══════════════════════════════════════════════════════════════════
+# OpenBMC AI-BDD Portal — 統一設定檔
+#
+# 這是唯一需要編輯的設定檔。
+# 環境變數（.env）僅供 CI/CD 覆蓋用，一般使用者不需要動 .env。
+# ══════════════════════════════════════════════════════════════════
+
+# ── Portal Server ─────────────────────────────────────────────────
+server:
+  host:  "0.0.0.0"
+  port:  8080
+  debug: true
+
+# ── OpenBMC 環境 ──────────────────────────────────────────────────
+openbmc:
+  # OpenBMC 根目錄，程式會自動掃描 {workspace}/build/ 底下的 MACHINE
+  workspace: "/home/andyeh/workspace/openbmc"
+
+  # 預設使用的 machine（對應 build/ 底下的子目錄名稱）
+  machine: "ast2700-default"
+
+  # openbmc-test-automation clone 的位置
+  robot_script_dir: "/home/andyeh/workspace/ci_test_area/openbmc-test-automation"
+
+# ── QEMU ─────────────────────────────────────────────────────────
+qemu:
+  # Docker 容器存活時間（秒）
+  run_timer:    3600
+  # 等待 OPENBMC-READY 最大時間（秒）
+  login_timer:  180
+  # Portal 內部 boot 完成等待逾時（秒）
+  boot_timeout: 300
+
+  # Host 端預設 port 對應（guest port 固定: 22 / 443 / 623）
+  # 可在個別 preset 中覆寫
+  default_ports:
+    ssh:   2222
+    https: 2443
+    ipmi:  2623
+
+  # 預設記憶體大小（個別 preset 可覆寫）
+  default_memory: "1G"
+
+  # 暫存映像檔目錄（QEMU 啟動前複製 image 到此處）
+  temp_image_dir: "/tmp"
+
+  # ── Preset 定義 ─────────────────────────────────────────────────
+  # binary_rel_path 相對於 {workspace}/build/{preset_id}/
+  # 若需完全自訂路徑，改用 binary_abs_path
+  presets:
+    ast2700-default:
+      label:            "ast2700-default (aarch64)"
+      machine:          "ast2700a1-evb"
+      binary_rel_path:  "tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64"
+      image:            "obmc-phosphor-image-ast2700-default.static.mtd"
+      extra_args:       "-serial mon:stdio -serial null -display none"
+
+    romulus:
+      label:            "romulus (arm)"
+      machine:          "romulus-bmc"
+      memory:           "256M"   # 覆寫 default_memory
+      binary_rel_path:  "tmp/sysroots/x86_64-linux/usr/bin/qemu-system-arm"
+      image:            "obmc-phosphor-image-romulus.static.mtd"
+      extra_args:       "-nographic"
+      use_docker:       false    # 標準 Ubuntu 系統套件，依賴 Host 系統庫，不適合跑在容器內
+
+# ── Docker ────────────────────────────────────────────────────────
+docker:
+  image:          "openbmc/ast2700-robot-qemu:Andy"   # 測試執行容器
+  runner_image:   "crops/poky:ubuntu-22.04"           # QEMU 執行容器
+  container_name: "qemu-portal-session"
+  socket:         "/var/run/docker.sock"
+  build_dir:      "/tmp/openbmc/build"                # 容器內掛載路徑
+
+# ── Robot Framework ───────────────────────────────────────────────
+robot:
+  output_dir:           "tests/bdd/reports"
+  log_level:            "INFO"
+  run_timeout:          600    # Robot 測試執行最長時間（秒）
+  allure_timeout:       120    # allure generate 最長時間（秒）
+  cleanup_grace_period: 300    # 執行結束後保留 log 串流的時間（秒）

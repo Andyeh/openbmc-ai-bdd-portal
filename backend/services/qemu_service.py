@@ -14,40 +14,75 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from backend.core.config import settings
+import yaml
+
+from backend.core.config import settings, _y
 
 
-# ── Preset definitions (mirrors boot-qemu.sh logic) ──────────────────────────
+# ── Preset loader ─────────────────────────────────────────────────────────────
 
-# Default host-side ports (matching real QEMU run command)
-# Guest ports are fixed; host ports are configurable by the user.
-DEFAULT_HOST_SSH   = 2222
-DEFAULT_HOST_HTTPS = 2443
-DEFAULT_HOST_IPMI  = 2623
+_PORTAL_CONFIG = Path(__file__).parent.parent.parent / "config" / "portal.yaml"
 
-PRESETS: dict[str, dict] = {
-    "ast2700-default": {
-        "label": "ast2700-default (aarch64)",
-        "machine": "ast2700a1-evb",
-        "memory": "1G",
-        "binary": str(settings.qemu_binary),
-        "image": "obmc-phosphor-image-ast2700-default.static.mtd",       # symlink — always points to latest build
-        "extra_args": "-serial mon:stdio -serial null -display none",
-        "host_ssh_port":   DEFAULT_HOST_SSH,
-        "host_https_port": DEFAULT_HOST_HTTPS,
-        "host_ipmi_port":  DEFAULT_HOST_IPMI,
-    },
-    "romulus": {
-        "label": "romulus (arm)",
-        "machine": "romulus-bmc",
-        "memory": "256M",
-        "binary": str(settings.upstream_workspace / "tmp/sysroots/x86_64-linux/usr/bin/qemu-system-arm"),
-        "image": "obmc-phosphor-image-romulus.static.mtd",  # symlink
-        "extra_args": "-nographic",
-        "host_ssh_port":   DEFAULT_HOST_SSH,
-        "host_https_port": DEFAULT_HOST_HTTPS,
-        "host_ipmi_port":  DEFAULT_HOST_IPMI,
-    },
+
+def _load_presets() -> dict[str, dict]:
+    """Load presets from config/portal.yaml (qemu.presets section) and resolve binary paths."""
+    if not _PORTAL_CONFIG.exists():
+        return {}
+
+    with _PORTAL_CONFIG.open() as f:
+        data = yaml.safe_load(f) or {}
+
+    qemu_cfg = data.get("qemu", {})
+    port_defaults = qemu_cfg.get("default_ports", {})
+    default_memory = qemu_cfg.get("default_memory", "1G")
+    defaults = {
+        "host_ssh_port":   port_defaults.get("ssh",   2222),
+        "host_https_port": port_defaults.get("https", 2443),
+        "host_ipmi_port":  port_defaults.get("ipmi",  2623),
+        "memory":          default_memory,
+    }
+    raw_presets: dict = qemu_cfg.get("presets", {})
+    resolved: dict[str, dict] = {}
+
+    for preset_id, cfg in raw_presets.items():
+        entry = {**cfg}
+
+        # Inherit defaults for any field not specified in the preset
+        for key in ("host_ssh_port", "host_https_port", "host_ipmi_port", "memory"):
+            if key not in entry:
+                entry[key] = defaults[key]
+
+        # Resolve binary path:
+        #   binary_rel_path  → {openbmc_workspace}/build/{preset_id}/{rel}
+        #   binary_abs_path  → used as-is (manual override)
+        #   settings.qemu_binary → fallback from .env
+        if "binary_abs_path" in entry:
+            entry["binary"] = entry.pop("binary_abs_path")
+            entry.pop("binary_rel_path", None)
+        elif "binary_rel_path" in entry:
+            rel = entry.pop("binary_rel_path")
+            machine_build_dir = settings.openbmc_workspace / "build" / preset_id
+            entry["binary"] = str(machine_build_dir / rel)
+        elif settings.qemu_binary:
+            entry["binary"] = settings.qemu_binary
+        else:
+            entry["binary"] = ""
+
+        resolved[preset_id] = entry
+
+    return resolved
+
+
+# Loaded once at import time; call _load_presets() again to reload
+PRESETS: dict[str, dict] = _load_presets()
+
+
+# ── Symlink-preferred image names (no date tag) ──────────────────────────────
+
+# These symlinks are maintained by bitbake and always point to the latest build.
+_PREFERRED_SYMLINKS = {
+    "obmc-phosphor-image-ast2700-default.static.mtd",
+    "obmc-phosphor-image-romulus.static.mtd",
 }
 
 
@@ -70,34 +105,25 @@ class QemuSession:
         return self.process is not None and self.process.returncode is None
 
 
-# ── Symlink-preferred image names (no date tag) ──────────────────────────────
-
-# These symlinks are maintained by bitbake and always point to the latest build.
-_PREFERRED_SYMLINKS = {
-    "obmc-phosphor-image-ast2700-default.static.mtd",
-    "obmc-phosphor-image-romulus.static.mtd",
-}
-
-
 # ── Launch request params ─────────────────────────────────────────────────────
 
 @dataclass
 class LaunchParams:
     machine: str
     image: str                  # filename relative to qemu_image_dir
-    memory: str = "1G"
+    memory: str = field(default_factory=lambda: settings.qemu_default_memory)
     binary: Optional[str] = None
     extra_args: str = ""
     dry_run: bool = False
     use_nic: bool = True        # attach NIC with port forwarding
     # Host-side port mapping (guest ports are fixed: 22/443/623)
-    host_ssh_port:   int = DEFAULT_HOST_SSH
-    host_https_port: int = DEFAULT_HOST_HTTPS
-    host_ipmi_port:  int = DEFAULT_HOST_IPMI
+    host_ssh_port:   int = field(default_factory=lambda: _y("qemu", "default_ports", "ssh",   default=2222))
+    host_https_port: int = field(default_factory=lambda: _y("qemu", "default_ports", "https", default=2443))
+    host_ipmi_port:  int = field(default_factory=lambda: _y("qemu", "default_ports", "ipmi",  default=2623))
     # Docker mode
     use_docker: bool = True
-    docker_image: str = "crops/poky:ubuntu-22.04"
-    docker_container_name: str = "qemu-portal-session"
+    docker_image:         str = field(default_factory=lambda: settings.docker_runner_image)
+    docker_container_name: str = field(default_factory=lambda: settings.docker_container_name)
 
 
 # ── QEMU Service ──────────────────────────────────────────────────────────────
@@ -181,16 +207,56 @@ class QemuService:
     def list_presets(self) -> list[dict]:
         return [{"id": k, **v} for k, v in PRESETS.items()]
 
+    def reload_presets(self) -> list[dict]:
+        """Reload presets from config/portal.yaml without restarting."""
+        global PRESETS
+        PRESETS = _load_presets()
+        return self.list_presets()
+
+    def list_machines(self) -> list[dict]:
+        """Dynamically scan {openbmc_workspace}/build/ for available machine directories.
+
+        A directory is considered a valid machine if it contains
+        tmp/deploy/images/<machine_name>/ with at least one image file.
+        Returns: [{"machine": str, "build_dir": str, "image_dir": str}]
+        """
+        build_root = settings.openbmc_workspace / "build"
+        if not build_root.exists():
+            return []
+
+        machines = []
+        for machine_dir in sorted(build_root.iterdir()):
+            if not machine_dir.is_dir():
+                continue
+            image_root = machine_dir / "tmp" / "deploy" / "images"
+            if not image_root.exists():
+                continue
+            # Each sub-directory under images/ is a machine variant
+            for img_dir in sorted(image_root.iterdir()):
+                if not img_dir.is_dir():
+                    continue
+                has_image = any(
+                    f.suffix in (".mtd", ".img", ".qcow2", ".flash")
+                    for f in img_dir.iterdir()
+                )
+                if has_image:
+                    machines.append({
+                        "machine":   machine_dir.name,
+                        "build_dir": str(machine_dir),
+                        "image_dir": str(img_dir),
+                    })
+        return machines
+
     # ── Command builder ───────────────────────────────────────────
 
     def _to_container_path(self, host_path: str) -> str:
         """Convert a host absolute path to container path under /workdir.
 
-        Mount: /home/andyeh/workspace/openbmc  →  /workdir
+        Mount: {openbmc_workspace}  →  /workdir
         e.g.  /home/andyeh/workspace/openbmc/build/ast2700-default/tmp/...
               → /workdir/build/ast2700-default/tmp/...
         """
-        openbmc_root = str(settings.upstream_workspace.parent.parent)
+        openbmc_root = str(settings.openbmc_workspace)
         return host_path.replace(openbmc_root, "/workdir", 1)
 
     def _qemu_args(self, params: LaunchParams, drive_path: str) -> list[str]:
@@ -214,6 +280,16 @@ class QemuService:
         binary = params.binary or str(settings.qemu_binary)
         return [binary] + self._qemu_args(params, drive_path)
 
+    @staticmethod
+    def _sysroot_lib_dir(binary_path: str) -> str:
+        """Derive the sysroot lib dir from a QEMU binary path.
+
+        Pattern: .../usr/bin/qemu-*  →  .../usr/lib
+        Works for both romulus (sysroots/x86_64-linux/usr/bin)
+        and ast2700 (recipe-sysroot-native/usr/bin).
+        """
+        return str(Path(binary_path).parent.parent / "lib")
+
     def build_docker_command(self, params: LaunchParams, host_image_path: Path, tty: bool = False) -> list[str]:
         """Assemble 'docker run' command that runs QEMU inside a container.
 
@@ -225,6 +301,7 @@ class QemuService:
         binary = params.binary or str(settings.qemu_binary)
         container_binary = self._to_container_path(binary)
         container_image  = self._to_container_path(str(host_image_path))
+        container_lib_dir = self._sysroot_lib_dir(container_binary)
 
         # Dynamically get current host user UID and GID to avoid permission issues
         uid = os.getuid() if hasattr(os, "getuid") else 1000
@@ -238,6 +315,7 @@ class QemuService:
             "-p", f"{params.host_https_port}:{params.host_https_port}",
             "-p", f"{params.host_ipmi_port}:{params.host_ipmi_port}/udp",
             "-v", f"{openbmc_root}:/workdir",
+            "-e", f"LD_LIBRARY_PATH={container_lib_dir}",
             "-it" if tty else "-i",
             "--entrypoint", container_binary,
             params.docker_image,
@@ -333,7 +411,7 @@ class QemuService:
             return {"ok": True, "pid": proc.pid, "command": cmd_str, "mode": "docker"}
 
         # ── Host mode: copy image to /tmp to protect original ──────────────────
-        tmp_path = f"/tmp/qemu-{params.machine}-{image_path.name}"
+        tmp_path = f"{settings.qemu_temp_image_dir}/qemu-{params.machine}-{image_path.name}"
         cmd = self.build_command(params, tmp_path)
         cmd_str = shlex.join(cmd)
         try:
@@ -343,6 +421,8 @@ class QemuService:
 
         # Open PTY master/slave pair to simulate a real terminal TTY
         master_fd, slave_fd = pty.openpty()
+        host_lib_dir = self._sysroot_lib_dir(cmd[0])
+        host_env = dict(os.environ, LD_LIBRARY_PATH=host_lib_dir)
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -350,6 +430,7 @@ class QemuService:
                 stdout=slave_fd,
                 stderr=slave_fd,
                 start_new_session=True,
+                env=host_env,
             )
         except FileNotFoundError:
             os.close(master_fd)
