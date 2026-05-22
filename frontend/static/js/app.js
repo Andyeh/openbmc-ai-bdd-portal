@@ -591,6 +591,7 @@ async function loadCategorized() {
   try {
     const data = await API.get('/api/robot/categorized');
     _categorizedData = data.categories ?? [];
+    if (data.robot_dir) _robotDir = data.robot_dir;
     _renderBrowseCategoryChips();
     _renderBrowseTests(_activeBrowseCat, '');
   } catch {
@@ -914,7 +915,7 @@ function _buildBrowseCommand(file, testNames) {
   for (const name of testNames) {
     parts.push('--test', `"${name}"`);
   }
-  parts.push(file);
+  parts.push(_robotDir + '/' + file);
   return parts.join(' ');
 }
 
@@ -924,7 +925,7 @@ function _buildSuiteCommand(suite) {
   for (const [k, v] of Object.entries(vars)) {
     parts.push('--variable', `${k}:${v}`);
   }
-  parts.push(suite);
+  parts.push(_robotDir + '/' + suite);
   return parts.join(' ');
 }
 
@@ -1012,13 +1013,16 @@ async function runBrowse() {
   const suites = [..._selectedSuites];
   if (!suites.length) { showToast('請先在「瀏覽測試」勾選至少一個腳本', 'error'); return; }
 
+  // Collect selected test names from _selectedTests
+  const testNames = [..._selectedTests].map(k => k.slice(k.indexOf('\0') + 1));
+
   const isDryRun  = document.getElementById('robot-dry-run-browse')?.checked ?? false;
   const variables = _collectVariables();
 
   // Always fetch and show the assembled command preview
   _setRunStatus(true, '組合指令中…', 'btn-stream-browse');
   try {
-    const preview = await API.post('/api/robot/run', { suites, variables, dry_run: true });
+    const preview = await API.post('/api/robot/run', { suites, variables, dry_run: true, test_names: testNames });
     if (preview.ok && preview.command) _showCmdPreview(preview.command, 'browse');
   } catch { /* preview failure is non-blocking */ }
   _setRunStatus(false, '', 'btn-stream-browse');
@@ -1028,12 +1032,12 @@ async function runBrowse() {
     return;
   }
 
-  await _doStreamRun(suites, variables, [], 'btn-stream-browse');
+  await _doStreamRun(suites, variables, [], 'btn-stream-browse', testNames);
 }
 
 // ── Shared streaming run helper ───────────────────────────────────────────────
 
-async function _doStreamRun(suites, variables, includeTags, streamBtnId) {
+async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNames = []) {
   if (_robotWs) { _robotWs.close(); _robotWs = null; }
 
   const streamBtn = document.getElementById(streamBtnId);
@@ -1041,7 +1045,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId) {
 
   const label = includeTags.length
     ? `CI ${includeTags.length} tags`
-    : `${suites.length} suite(s)`;
+    : `${testNames.length || suites.length} test(s)`;
   showToast(`啟動串流執行 (${label})…`, 'info');
 
   try {
@@ -1049,6 +1053,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId) {
       suites,
       variables,
       include_tags: includeTags,
+      test_names:   testNames,
     });
 
     if (!data.ok) {
@@ -1351,6 +1356,16 @@ async function loadReports() {
       linkLog.className = 'btn btn--ghost btn--sm report-link';
       linkLog.textContent = '📋 Full Log';
       actions.appendChild(linkLog);
+
+      if (r.allure_path) {
+        const linkAllure = document.createElement('a');
+        linkAllure.href = '/reports/' + r.allure_path;
+        linkAllure.target = '_blank';
+        linkAllure.rel = 'noopener noreferrer';
+        linkAllure.className = 'btn btn--primary btn--sm report-link';
+        linkAllure.textContent = '🔬 Allure 報告';
+        actions.appendChild(linkAllure);
+      }
 
       card.appendChild(actions);
       list.appendChild(card);

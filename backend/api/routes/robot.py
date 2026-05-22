@@ -25,6 +25,7 @@ class RunRequest(BaseModel):
     variables:    dict[str, str] = {}
     dry_run:      bool = False
     include_tags: list[str] = []
+    test_names:   list[str] = []
 
     @field_validator("suites")
     @classmethod
@@ -57,6 +58,7 @@ class StreamRunRequest(BaseModel):
     suites:       list[str]
     variables:    dict[str, str] = {}
     include_tags: list[str] = []
+    test_names:   list[str] = []
 
     @field_validator("suites")
     @classmethod
@@ -109,7 +111,10 @@ def list_suites():
 @router.get("/categorized")
 def get_categorized():
     """Return .robot test cases grouped by category with descriptions."""
-    return {"categories": robot_service.list_categorized()}
+    return {
+        "categories": robot_service.list_categorized(),
+        "robot_dir":  str(settings.robot_script_dir),
+    }
 
 
 @router.get("/test-lists")
@@ -138,6 +143,7 @@ async def run_suites(req: RunRequest):
         variables=req.variables,
         dry_run=req.dry_run,
         include_tags=req.include_tags,
+        test_names=req.test_names,
     )
     if not result.get("ok"):
         err = result.get("error", "")
@@ -158,6 +164,7 @@ async def start_stream_run(req: StreamRunRequest):
         suites=req.suites,
         variables=req.variables,
         include_tags=req.include_tags,
+        test_names=req.test_names,
     )
     if not ok:
         if any(k in err.lower() for k in ("traversal", "disallowed", "invalid")):

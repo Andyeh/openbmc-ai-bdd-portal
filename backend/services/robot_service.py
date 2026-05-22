@@ -9,6 +9,7 @@ Security measures:
 import asyncio
 import re
 import subprocess
+import shlex
 import sys
 import uuid
 import xml.etree.ElementTree as ET
@@ -390,11 +391,13 @@ class RobotService:
             ts = datetime.fromtimestamp(html.stat().st_mtime)
             rel_dir = html.parent.relative_to(out_dir)
             stats = _parse_output_xml(html.parent / "output.xml")
+            allure_index = html.parent / "allure-report" / "index.html"
             entry = {
                 "name":        html.parent.name,
                 "report_path": str(rel_dir / "report.html"),
                 "log_path":    str(rel_dir / "log.html"),
                 "modified":    ts.isoformat(),
+                "allure_path": str(rel_dir / "allure-report" / "index.html") if allure_index.exists() else None,
             }
             entry.update(stats)
             reports.append(entry)
@@ -481,6 +484,7 @@ class RobotService:
         variables: dict,
         out_dir: Path,
         include_tags: Optional[list[str]] = None,
+        test_names: Optional[list[str]] = None,
     ) -> tuple[bool, str, list[str]]:
         """
         Build the robot command list.
@@ -525,10 +529,37 @@ class RobotService:
             for tag in include_tags:
                 cmd += ["--include", tag]
 
+        if test_names:
+            for name in test_names:
+                cmd += ["--test", name]
+
+        # Allure listener — generates allure-results/ alongside the Robot outputs
+        allure_results = out_dir / "allure-results"
+        cmd += ["--listener", f"allure_robotframework;{allure_results}"]
+
         for path in resolved_suites:
             cmd.append(str(path))
 
         return True, "", cmd
+
+    @staticmethod
+    async def _generate_allure_report(out_dir: Path) -> None:
+        """Run `allure generate` to produce a static Allure HTML report from allure-results/."""
+        allure_results = out_dir / "allure-results"
+        allure_report  = out_dir / "allure-report"
+        if not allure_results.exists():
+            return
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "allure", "generate", str(allure_results),
+                "-o", str(allure_report),
+                "--clean",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+        except FileNotFoundError:
+            pass  # allure CLI not installed — skip silently
 
     # ── Synchronous run (used by run_async via executor) ──────────────────────
 
@@ -538,19 +569,21 @@ class RobotService:
         variables: Optional[dict] = None,
         dry_run: bool = False,
         include_tags: Optional[list[str]] = None,
+        test_names: Optional[list[str]] = None,
     ) -> dict:
         variables = variables or {}
         include_tags = include_tags or []
+        test_names = test_names or []
 
         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         out_dir = settings.robot_output_dir / ts
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        ok, err, cmd = self._build_robot_cmd(suites, variables, out_dir, include_tags)
+        ok, err, cmd = self._build_robot_cmd(suites, variables, out_dir, include_tags, test_names)
         if not ok:
             return {"ok": False, "error": err}
 
-        command_str = " ".join(cmd)
+        command_str = shlex.join(cmd)
 
         if dry_run:
             return {
@@ -566,6 +599,17 @@ class RobotService:
                 text=True,
                 timeout=600,
             )
+            # Best-effort Allure generation (sync subprocess, short-lived)
+            allure_results = out_dir / "allure-results"
+            if allure_results.exists():
+                try:
+                    subprocess.run(
+                        ["allure", "generate", str(allure_results),
+                         "-o", str(out_dir / "allure-report"), "--clean"],
+                        capture_output=True, timeout=120,
+                    )
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    pass
             return {
                 "ok":         result.returncode == 0,
                 "returncode": result.returncode,
@@ -585,10 +629,11 @@ class RobotService:
         variables: Optional[dict] = None,
         dry_run: bool = False,
         include_tags: Optional[list[str]] = None,
+        test_names: Optional[list[str]] = None,
     ) -> dict:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
-            None, lambda: self.run(suites, variables, dry_run, include_tags)
+            None, lambda: self.run(suites, variables, dry_run, include_tags, test_names)
         )
 
     # ── Async streaming run ────────────────────────────────────────────────────
@@ -598,6 +643,7 @@ class RobotService:
         suites: list[str],
         variables: Optional[dict] = None,
         include_tags: Optional[list[str]] = None,
+        test_names: Optional[list[str]] = None,
     ) -> tuple[bool, str, str]:
         """
         Start a Robot run as an async subprocess and register it for WS log streaming.
@@ -605,13 +651,14 @@ class RobotService:
         """
         variables = variables or {}
         include_tags = include_tags or []
+        test_names = test_names or []
 
         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         run_id = str(uuid.uuid4())[:8]
         out_dir = settings.robot_output_dir / f"{ts}_{run_id}"
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        ok, err, cmd = self._build_robot_cmd(suites, variables, out_dir, include_tags)
+        ok, err, cmd = self._build_robot_cmd(suites, variables, out_dir, include_tags, test_names)
         if not ok:
             return False, err, ""
 
@@ -627,7 +674,7 @@ class RobotService:
             "process":   proc,
             "log_queue": log_queue,
             "out_dir":   str(out_dir),
-            "command":   " ".join(cmd),
+            "command":   shlex.join(cmd),
         }
 
         # Background reader task feeds queue
@@ -649,6 +696,12 @@ class RobotService:
         finally:
             await proc.wait()
             await queue.put(None)  # sentinel — signals end of stream
+
+            # Generate Allure report from allure-results/ after run completes
+            run_info = _active_runs.get(run_id)
+            if run_info:
+                out_dir = Path(run_info["out_dir"])
+                await self._generate_allure_report(out_dir)
 
             # Clean up run entry after a grace period
             await asyncio.sleep(300)
