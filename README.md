@@ -50,7 +50,35 @@ openbmc-ai-bdd-portal/
 - Docker (若要執行容器化 QEMU 模擬)
 - Allure Commandline (用以產生與預覽測試報告)
 
-### 2. 一鍵啟動平台
+### 2. 建立 Python 虛擬環境
+
+建議使用虛擬環境隔離專案依賴，避免與系統 Python 套件衝突。
+
+```bash
+# 建立虛擬環境
+python3 -m venv .venv
+
+# 啟動虛擬環境
+source .venv/bin/activate          # Linux / macOS
+# .venv\Scripts\activate           # Windows
+
+# 安裝專案依賴
+pip install -r requirements.txt
+```
+
+若需在 Portal 內執行 openbmc-test-automation 的 Robot 測試腳本，需額外安裝其依賴：
+
+```bash
+pip install -r /path/to/openbmc-test-automation/requirements.txt
+```
+
+離開虛擬環境：
+
+```bash
+deactivate
+```
+
+### 3. 一鍵啟動平台
 專案已內建自動化啟動腳本 `scripts/start.sh`，會自動建立虛擬環境、安裝依賴，並產生預設環境變數：
 
 ```bash

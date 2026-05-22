@@ -37,6 +37,9 @@ pip-selfcheck.json
 
 # Testing and Reports
 tests/bdd/reports/
+output.xml
+log.html
+report.html
 allure-report/
 allure-results/
 .pytest_cache/

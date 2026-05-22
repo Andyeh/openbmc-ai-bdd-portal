@@ -22,6 +22,7 @@ websockets==12.0
 # ── Robot Framework integration ───────────────
 robotframework==7.0
 robotframework-requests==0.9.5
+allure-robotframework           # Allure listener for Robot Framework runs
 
 # ── BDD Testing (behave) ──────────────────────
 behave==1.2.6
