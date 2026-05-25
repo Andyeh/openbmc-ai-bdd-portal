@@ -48,7 +48,7 @@ Feature: Portal Architecture — Main Dashboard Layout
     When the user navigates to the portal home page
     Then the Robot panel should be visible
     And the Robot panel should list available .robot test suites
-    And the Robot panel should have a "Run (同步)" button
+    And the Robot panel should have a "▶ Run" button
     And the Robot panel should allow setting extra Robot variables
 
   # ──────────────────────────────────────────────────────────────────────────

@@ -142,6 +142,30 @@ function debouncePreview() {
   _previewTimer = setTimeout(previewCommand, 500);
 }
 
+function _copyTextToClipboard(text, btn, label = '複製') {
+  const markCopied = () => {
+    btn.textContent = '已複製 ✓';
+    setTimeout(() => { btn.textContent = label; }, 2000);
+  };
+  // Try execCommand first — must be synchronous (works on HTTP)
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  document.body.removeChild(ta);
+  if (ok) { markCopied(); return; }
+  // Fallback: async clipboard API (HTTPS / localhost)
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(markCopied).catch(() => showToast('複製失敗', 'error'));
+  } else {
+    showToast('複製失敗', 'error');
+  }
+}
+
 async function copyQemuCmd() {
   const pre = document.getElementById('qemu-cmd-preview');
   const btn = document.getElementById('qemu-cmd-copy-btn');
@@ -153,6 +177,13 @@ async function copyQemuCmd() {
   } catch {
     showToast('複製失敗', 'error');
   }
+}
+
+function copyRobotCmd() {
+  const pre = document.getElementById('robot-log-cmd-preview');
+  const btn = document.getElementById('robot-cmd-copy-btn-log');
+  if (!pre || !btn) return;
+  _copyTextToClipboard(pre.textContent, btn);
 }
 
 async function previewCommand() {
@@ -1120,13 +1151,19 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
     _robotWs.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.done !== undefined) {
+        if (msg.generating_allure) {
           const rc = msg.returncode ?? -1;
           appendRobotLog('\n' + '─'.repeat(60) + '\n', 'log-sep');
           appendRobotLog(
             rc === 0 ? `✅ PASSED — rc: ${rc}\n` : `❌ FAILED — rc: ${rc}\n`,
             rc === 0 ? 'log-done' : 'log-fail'
           );
+          appendRobotLog('[Allure] 產生報告中…\n', 'log-info');
+          return;
+        }
+        if (msg.done !== undefined) {
+          const rc = msg.returncode ?? -1;
+          appendRobotLog('[Allure] 報告產生完成\n', 'log-info');
           progressWrap?.classList.add('hidden');
           if (streamBtn) streamBtn.disabled = false;
           _setRobotWsBadge('off');
@@ -1139,7 +1176,10 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
           viewReportBtn.textContent = '查看報告';
           viewReportBtn.addEventListener('click', () => showPage('reports'));
           const logEl = document.getElementById('robot-log-console');
-          if (logEl) logEl.appendChild(viewReportBtn);
+          if (logEl) {
+            logEl.appendChild(viewReportBtn);
+            logEl.scrollTop = logEl.scrollHeight;
+          }
           return;
         }
         if (msg.error) { appendRobotLog(`[ERROR] ${msg.error}\n`, 'log-fail'); return; }
@@ -1227,37 +1267,15 @@ function _showCmdPreview(cmd, suffix) {
   wrap.style.display = 'block';
   if (el) el.textContent = _formatCmd(cmd);
 
-  // Add copy button to header (once)
+  // Add copy button to header (once); always copies formatted textContent
   if (hdr && !hdr.querySelector('.cmd-copy-btn')) {
     const copyBtn = document.createElement('button');
     copyBtn.className = 'btn btn--ghost btn--xs cmd-copy-btn';
     copyBtn.textContent = '複製';
-    copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(cmd);
-        copyBtn.textContent = '已複製 ✓';
-        setTimeout(() => { copyBtn.textContent = '複製'; }, 2000);
-      } catch {
-        showToast('複製失敗', 'error');
-      }
+    copyBtn.addEventListener('click', () => {
+      _copyTextToClipboard(el ? el.textContent : cmd, copyBtn);
     });
     hdr.appendChild(copyBtn);
-  } else if (hdr) {
-    // Update the raw cmd captured in the copy handler on subsequent calls
-    const copyBtn = hdr.querySelector('.cmd-copy-btn');
-    if (copyBtn) {
-      const newBtn = copyBtn.cloneNode(true);
-      newBtn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(cmd);
-          newBtn.textContent = '已複製 ✓';
-          setTimeout(() => { newBtn.textContent = '複製'; }, 2000);
-        } catch {
-          showToast('複製失敗', 'error');
-        }
-      });
-      copyBtn.replaceWith(newBtn);
-    }
   }
 }
 

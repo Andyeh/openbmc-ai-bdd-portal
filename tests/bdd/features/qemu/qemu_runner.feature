@@ -89,9 +89,8 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
         "image": "obmc-phosphor-image-ast2700-default.static.mtd"
       }
       """
-    Then the response status code should be 200
-    And the response body should contain "ok" equal to false
-    And the response body should contain "error" with message "QEMU is already running"
+    Then the response status code should be 409
+    And the response body should contain an "detail" field
 
   # ──────────────────────────────────────────────────────────────────────────
   # Scenario 6 — 缺少必填欄位時應回傳錯誤
@@ -136,9 +135,8 @@ Feature: QEMU Runner — Launch and Monitor QEMU Instance
       """
       {}
       """
-    Then the response status code should be 200
-    And the response body should contain "ok" equal to false
-    And the response body should contain "error" with message "No running QEMU session"
+    Then the response status code should be 404
+    And the response body should contain an "detail" field
 
   # ──────────────────────────────────────────────────────────────────────────
   # Scenario 10 — Dry-run 模式只回傳指令不實際執行

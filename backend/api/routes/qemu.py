@@ -1,8 +1,8 @@
 """
 QEMU API Router — full launch lifecycle with structured JSON params.
 """
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, field_validator
 from typing import Optional
 
 from backend.services.qemu_service import qemu_service, LaunchParams
@@ -22,6 +22,13 @@ class LaunchRequest(BaseModel):
     machine: str
     image: str
     memory: str = settings.qemu_default_memory
+
+    @field_validator("image")
+    @classmethod
+    def validate_image(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("image must not be empty.")
+        return v
     binary: Optional[str] = None
     extra_args: str = ""
     dry_run: bool = False
@@ -115,18 +122,33 @@ def list_machines():
 @router.post("/build-command")
 def build_command(req: BuildCommandRequest):
     """Preview the assembled QEMU command without executing it."""
-    return qemu_service.command_preview(req.to_params())
+    try:
+        return qemu_service.command_preview(req.to_params())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/launch")
 async def launch_qemu(req: LaunchRequest):
     """Launch QEMU asynchronously with structured parameters."""
-    return await qemu_service.launch(req.to_params())
+    result = await qemu_service.launch(req.to_params())
+    if not result.get("ok"):
+        err = result.get("error", "Unknown error")
+        if "already running" in err.lower():
+            raise HTTPException(status_code=409, detail=err)
+        if "not found" in err.lower() or "image" in err.lower():
+            raise HTTPException(status_code=404, detail=err)
+        raise HTTPException(status_code=500, detail=err)
+    return result
 
 
 @router.post("/stop")
 def stop_qemu():
-    return qemu_service.stop()
+    result = qemu_service.stop()
+    if not result.get("ok"):
+        err = result.get("error", "Unknown error")
+        raise HTTPException(status_code=404, detail=err)
+    return result
 
 
 @router.get("/logs")

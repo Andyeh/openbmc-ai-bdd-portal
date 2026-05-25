@@ -349,7 +349,7 @@
                 <span>🔍 Assembled Robot Command</span>
               </div>
               <pre id="robot-cmd-preview-ci" class="log-console"
-                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
+                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px;max-height:200px;overflow-y:auto"
                 aria-label="Robot command preview"></pre>
             </div>
 
@@ -407,7 +407,7 @@
                 <span>🔍 Assembled Robot Command</span>
               </div>
               <pre id="robot-cmd-preview-browse" class="log-console"
-                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px"
+                style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;min-height:60px;max-height:200px;overflow-y:auto"
                 aria-label="Robot command preview"></pre>
             </div>
 
@@ -420,6 +420,7 @@
             <div id="robot-log-cmd-wrap" style="display:none;margin-bottom:10px">
               <div class="log-console-header" style="border-radius:6px 6px 0 0">
                 <span>🔍 Executing Command</span>
+                <button class="btn btn--ghost btn--xs" id="robot-cmd-copy-btn-log" onclick="copyRobotCmd()">複製</button>
               </div>
               <pre id="robot-log-cmd-preview" class="log-console"
                 style="color:#f6ad55;font-size:0.72rem;white-space:pre-wrap;word-break:break-all;height:auto;max-height:100px;overflow-y:auto"></pre>

@@ -692,13 +692,14 @@ class RobotService:
                 await queue.put(line.decode(errors="replace"))
         finally:
             await proc.wait()
-            await queue.put(None)  # sentinel — signals end of stream
+            await queue.put(None)  # sentinel — signals process stdout ended
 
-            # Generate Allure report from allure-results/ after run completes
+            # Generate Allure report; frontend waits for allure_done before showing reports
             run_info = _active_runs.get(run_id)
             if run_info:
                 out_dir = Path(run_info["out_dir"])
                 await self._generate_allure_report(out_dir)
+            await queue.put({"allure_done": True})  # sentinel — signals allure complete
 
             # Clean up run entry after a grace period
             await asyncio.sleep(settings.robot_cleanup_grace_period)
@@ -724,7 +725,14 @@ class RobotService:
         while True:
             line = await queue.get()
             if line is None:
-                # Stream ended — send final status
+                # Process stdout ended — notify frontend allure is generating
+                rc = proc.returncode if proc.returncode is not None else -1
+                await websocket.send_text(
+                    _json.dumps({"generating_allure": True, "returncode": rc})
+                )
+                continue
+            if isinstance(line, dict) and line.get("allure_done"):
+                # Allure done — send final status so frontend loads reports
                 rc = proc.returncode if proc.returncode is not None else -1
                 await websocket.send_text(
                     _json.dumps({"returncode": rc, "done": True})

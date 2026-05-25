@@ -178,7 +178,7 @@ def get_run_status(run_id: str):
     """Check if a streaming run is still active."""
     info = robot_service.get_run_info(run_id)
     if not info:
-        return {"active": False}
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     proc = info["process"]
     return {
         "active":  proc.returncode is None,
