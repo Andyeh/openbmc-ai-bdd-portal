@@ -40,6 +40,22 @@ mkdir -p tests/bdd/reports/allure-results
 HOST="${APP_HOST:-0.0.0.0}"
 PORT="${APP_PORT:-8080}"
 
+# Kill any stale process still holding the port
+STALE_PIDS=$(
+  { lsof -ti :"$PORT" 2>/dev/null; } ||
+  { fuser "$PORT"/tcp 2>/dev/null; } ||
+  true
+)
+if [[ -n "$STALE_PIDS" ]]; then
+  echo "[server] Killing stale process(es) on port ${PORT}: ${STALE_PIDS}"
+  kill -9 $STALE_PIDS 2>/dev/null || true
+  sleep 0.5
+else
+  # Fallback: kill by process name
+  pkill -9 -f "uvicorn backend.main:app" 2>/dev/null || true
+  [[ $? -eq 0 ]] && sleep 0.5
+fi
+
 echo ""
 echo "[server] Starting FastAPI on http://${HOST}:${PORT}"
 echo "[server] API docs: http://${HOST}:${PORT}/api/docs"

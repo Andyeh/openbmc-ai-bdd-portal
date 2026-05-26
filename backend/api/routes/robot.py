@@ -121,8 +121,9 @@ def get_categorized():
 def get_test_lists():
     """Return predefined CI test suites from test_lists/ directory."""
     return {
-        "test_lists": robot_service.list_test_lists(),
-        "robot_dir":  str(settings.robot_script_dir),
+        "test_lists":  robot_service.list_test_lists(),
+        "robot_dir":   str(settings.robot_script_dir),
+        "output_dir":  str(settings.robot_output_dir),
     }
 
 
@@ -160,7 +161,7 @@ async def start_stream_run(req: StreamRunRequest):
     Connect to /api/robot/ws/logs/{run_id} to receive live stdout.
     Supports include_tags for test_list-style filtering.
     """
-    ok, err, run_id = await robot_service.start_streaming_run(
+    ok, err, run_id, command = await robot_service.start_streaming_run(
         suites=req.suites,
         variables=req.variables,
         include_tags=req.include_tags,
@@ -170,7 +171,7 @@ async def start_stream_run(req: StreamRunRequest):
         if any(k in err.lower() for k in ("traversal", "disallowed", "invalid")):
             raise HTTPException(status_code=400, detail=err)
         raise HTTPException(status_code=500, detail=err)
-    return {"ok": True, "run_id": run_id}
+    return {"ok": True, "run_id": run_id, "command": command}
 
 
 @router.get("/run/{run_id}/status")

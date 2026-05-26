@@ -263,7 +263,6 @@ async function launchQemu() {
     binary:               document.getElementById('qemu-binary').value   || null,
     extra_args:           document.getElementById('qemu-extra-args').value,
     use_nic:              document.getElementById('qemu-use-nic').checked,
-    dry_run:              document.getElementById('qemu-dry-run').checked,
     host_ssh_port:        parseInt(document.getElementById('port-ssh').value)   || 2222,
     host_https_port:      parseInt(document.getElementById('port-https').value) || 2443,
     host_ipmi_port:       parseInt(document.getElementById('port-ipmi').value)  || 2623,
@@ -272,22 +271,15 @@ async function launchQemu() {
     docker_container_name: 'qemu-portal-session',
   };
 
-  const isDryRun = body.dry_run;
-  showToast(isDryRun ? 'Dry-run: building command...' : 'Launching QEMU…', 'info');
+  showToast('Launching QEMU…', 'info');
 
   try {
     const data = await API.post('/api/qemu/launch', body);
 
     if (data.ok) {
-      if (isDryRun) {
-        document.getElementById('qemu-cmd-preview').textContent = _formatQemuCmd(data.command);
-        showToast('Dry-run complete — see command preview above', 'success');
-        appendLog(`[DRY-RUN] ${data.command}\n`);
-      } else {
-        showToast(`QEMU launched (PID ${data.pid})`, 'success');
-        appendLog(`[LAUNCH] ${data.command}\n`);
-        connectQemuLogs();
-      }
+      showToast(`QEMU launched (PID ${data.pid})`, 'success');
+      appendLog(`[LAUNCH] ${data.command}\n`);
+      connectQemuLogs();
     } else {
       showToast(`Error: ${data.error}`, 'error');
       appendLog(`[ERROR] ${data.error}\n`);
@@ -402,7 +394,8 @@ function clearLog() {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let _ciData          = [];   // test_lists from API
-let _robotDir        = '.';  // robot_script_dir from API
+let _robotDir        = '.';               // robot_script_dir from API
+let _robotOutputDir  = 'tests/bdd/reports'; // robot_output_dir from API
 let _categorizedData = [];   // categorized tests from API
 let _selectedCiIncludes = new Set();   // --include tag names (for CI mode)
 let _selectedSuites  = new Set();      // file paths (for browse mode — used for running)
@@ -410,6 +403,8 @@ let _selectedTests   = new Set();      // "file\0name" keys (for test-case count
 let _activeBrowseCat = null;           // active category chip filter
 let _robotWs         = null;
 let _currentRunId    = null;
+let _robotPassCount  = 0;
+let _robotFailCount  = 0;
 
 // ── Robot Tab switching ───────────────────────────────────────────────────────
 
@@ -434,13 +429,21 @@ function toggleVarsSection() {
 async function loadCiCards() {
   try {
     const data = await API.get('/api/robot/test-lists');
-    _ciData    = data.test_lists ?? [];
-    _robotDir  = data.robot_dir  ?? '.';
+    _ciData         = data.test_lists  ?? [];
+    _robotDir       = data.robot_dir   ?? '.';
+    _robotOutputDir = data.output_dir  ?? 'tests/bdd/reports';
     _renderCiCards();
   } catch {
     const grid = document.getElementById('ci-cards-grid');
     grid.innerHTML = '<div class="ci-card-loading">⚠ 無法載入 CI 套件</div>';
   }
+}
+
+function _nowOutputDir() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const ts = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `${_robotOutputDir}/${ts}`;
 }
 
 function _buildTagCommand(tag) {
@@ -449,6 +452,7 @@ function _buildTagCommand(tag) {
   for (const [k, v] of Object.entries(vars)) {
     parts.push('--variable', `${k}:${v}`);
   }
+  parts.push('--outputdir', _nowOutputDir());
   parts.push('--include', tag);
   parts.push(_robotDir);
   return parts.join(' ');
@@ -969,6 +973,7 @@ function _buildBrowseCommand(file, testNames) {
   for (const [k, v] of Object.entries(vars)) {
     parts.push('--variable', `${k}:${v}`);
   }
+  parts.push('--outputdir', _nowOutputDir());
   for (const name of testNames) {
     parts.push('--test', `"${name}"`);
   }
@@ -1092,6 +1097,22 @@ async function runBrowse() {
   await _doStreamRun(suites, variables, [], 'btn-stream-browse', testNames);
 }
 
+// ── Progress status helpers ───────────────────────────────────────────────────
+
+function _setProgressPhase(text) {
+  const el = document.getElementById('robot-progress-phase');
+  if (el) el.textContent = text;
+}
+
+function _updateProgressCounts(pass, fail) {
+  const el = document.getElementById('robot-progress-counts');
+  if (!el) return;
+  const parts = [];
+  if (pass > 0) parts.push(`✅ ${pass} 通過`);
+  if (fail > 0) parts.push(`❌ ${fail} 失敗`);
+  el.textContent = parts.join(' · ');
+}
+
 // ── Shared streaming run helper ───────────────────────────────────────────────
 
 async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNames = []) {
@@ -1121,6 +1142,14 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
 
     _currentRunId = data.run_id;
 
+    // Update Executing Command preview with the actual command (correct --outputdir)
+    if (data.command) {
+      const logWrap = document.getElementById('robot-log-cmd-wrap');
+      const logPre  = document.getElementById('robot-log-cmd-preview');
+      if (logWrap) logWrap.style.display = 'block';
+      if (logPre)  logPre.textContent = _formatCmd(data.command);
+    }
+
     const badge    = document.getElementById('robot-run-id-badge');
     const badgeTxt = document.getElementById('robot-run-id-text');
     if (badge && badgeTxt) { badgeTxt.textContent = _currentRunId; badge.hidden = false; }
@@ -1134,10 +1163,13 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
     }
     appendRobotLog('─'.repeat(60) + '\n', 'log-sep');
 
+    _robotPassCount = 0;
+    _robotFailCount = 0;
+
     const progressWrap = document.getElementById('robot-progress-wrap');
-    const progressBar  = document.getElementById('robot-progress-bar');
     progressWrap?.classList.remove('hidden');
-    if (progressBar) progressBar.style.width = '100%';
+    _setProgressPhase('🔗 連線中...');
+    _updateProgressCounts(0, 0);
 
     _setRobotWsBadge('connecting');
     const wsUrl = `ws://${window.location.host}/api/robot/ws/logs/${_currentRunId}`;
@@ -1145,6 +1177,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
 
     _robotWs.onopen = () => {
       _setRobotWsBadge('on');
+      _setProgressPhase('▶ 執行中');
       appendRobotLog('[WebSocket] 連線成功，等待輸出…\n', 'log-info');
     };
 
@@ -1159,6 +1192,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
             rc === 0 ? 'log-done' : 'log-fail'
           );
           appendRobotLog('[Allure] 產生報告中…\n', 'log-info');
+          _setProgressPhase('⚙ 產生 Allure 報告中...');
           return;
         }
         if (msg.done !== undefined) {
@@ -1184,6 +1218,16 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
         }
         if (msg.error) { appendRobotLog(`[ERROR] ${msg.error}\n`, 'log-fail'); return; }
       } catch { /* not JSON — plain log line */ }
+
+      // Parse Robot summary line: "N tests, N passed, N failed"
+      const bare = e.data.replace(/\x1B\[[0-9;]*m/g, '');
+      const summary = bare.match(/^(\d+) tests?, (\d+) passed, (\d+) failed/);
+      if (summary) {
+        _robotPassCount = parseInt(summary[2]);
+        _robotFailCount = parseInt(summary[3]);
+        _updateProgressCounts(_robotPassCount, _robotFailCount);
+      }
+
       _appendColoredLog(e.data);
     };
 

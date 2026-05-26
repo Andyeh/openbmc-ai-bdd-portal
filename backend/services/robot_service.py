@@ -572,9 +572,8 @@ class RobotService:
         include_tags = include_tags or []
         test_names = test_names or []
 
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_dir = settings.robot_output_dir / ts
-        out_dir.mkdir(parents=True, exist_ok=True)
 
         ok, err, cmd = self._build_robot_cmd(suites, variables, out_dir, include_tags, test_names)
         if not ok:
@@ -588,6 +587,8 @@ class RobotService:
                 "dry_run": True,
                 "command": command_str,
             }
+
+        out_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             result = subprocess.run(
@@ -641,23 +642,25 @@ class RobotService:
         variables: Optional[dict] = None,
         include_tags: Optional[list[str]] = None,
         test_names: Optional[list[str]] = None,
-    ) -> tuple[bool, str, str]:
+    ) -> tuple[bool, str, str, str]:
         """
         Start a Robot run as an async subprocess and register it for WS log streaming.
-        Returns (ok, error_message, run_id).
+        Returns (ok, error_message, run_id, command_string).
         """
         variables = variables or {}
         include_tags = include_tags or []
         test_names = test_names or []
 
-        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        run_id = str(uuid.uuid4())[:8]
-        out_dir = settings.robot_output_dir / f"{ts}_{run_id}"
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_id = ts.split("_")[1]  # HHMMSS — WebSocket / _active_runs key
+        out_dir = settings.robot_output_dir / ts
         out_dir.mkdir(parents=True, exist_ok=True)
 
         ok, err, cmd = self._build_robot_cmd(suites, variables, out_dir, include_tags, test_names)
         if not ok:
-            return False, err, ""
+            return False, err, "", ""
+
+        cmd_str = shlex.join(cmd)
 
         # Launch subprocess non-blocking
         proc = await asyncio.create_subprocess_exec(
@@ -671,13 +674,13 @@ class RobotService:
             "process":   proc,
             "log_queue": log_queue,
             "out_dir":   str(out_dir),
-            "command":   shlex.join(cmd),
+            "command":   cmd_str,
         }
 
         # Background reader task feeds queue
         asyncio.create_task(self._feed_log_queue(run_id, proc, log_queue))
 
-        return True, "", run_id
+        return True, "", run_id, cmd_str
 
     async def _feed_log_queue(
         self,

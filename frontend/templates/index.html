@@ -153,11 +153,6 @@
               </div>
 
               <label class="toggle-label" style="margin-top:4px">
-                <input type="checkbox" id="qemu-dry-run" />
-                <span>Dry-run（僅預覽指令，不實際執行）</span>
-              </label>
-
-              <label class="toggle-label" style="margin-top:4px">
                 <input type="checkbox" id="qemu-use-docker" checked
                   onchange="toggleDockerInput(this.checked); debouncePreview()" />
                 <span>🐳 在 Docker 容器內執行 QEMU</span>
@@ -436,7 +431,11 @@
                 </div>
               </div>
               <div id="robot-progress-wrap" class="progress-wrap hidden">
-                <div id="robot-progress-bar" class="progress-bar" style="width:0%"></div>
+                <div class="progress-status-row">
+                  <span id="robot-progress-phase">▶ 執行中</span>
+                  <span id="robot-progress-counts"></span>
+                </div>
+                <div id="robot-progress-bar" class="progress-bar" style="width:100%"></div>
               </div>
               <div id="robot-log-console" aria-label="Robot Framework live log output" aria-live="polite">
                 <span class="log-info"># 在「CI 預設套件」或「手動挑選」分頁按 ▶ Run 後，即時輸出將顯示於此…</span>

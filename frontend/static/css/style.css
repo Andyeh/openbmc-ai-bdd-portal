@@ -990,17 +990,35 @@ label {
 
 /* ── Progress bar ────────────────────────────────────────────── */
 .progress-wrap {
-  height: 3px;
   background: var(--bg-elevated);
-  border-radius: 99px;
+  border-radius: 6px;
   overflow: hidden;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s, max-height 0.3s;
+  max-height: 60px;
+  margin-bottom: 2px;
 }
-.progress-wrap.hidden { opacity: 0; }
+.progress-wrap.hidden { opacity: 0; max-height: 0; pointer-events: none; }
+
+.progress-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px 2px;
+  gap: 8px;
+}
+#robot-progress-phase {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+#robot-progress-counts {
+  font-size: 0.7rem;
+  font-family: monospace;
+  color: var(--text-muted);
+}
 
 .progress-bar {
-  height: 100%;
-  border-radius: 99px;
+  height: 3px;
   background: linear-gradient(90deg, var(--accent) 0%, var(--info) 100%);
   transition: width 0.4s ease;
   animation: progress-shimmer 1.5s infinite;
