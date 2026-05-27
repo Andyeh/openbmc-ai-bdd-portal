@@ -1097,6 +1097,34 @@ async function runBrowse() {
   await _doStreamRun(suites, variables, [], 'btn-stream-browse', testNames);
 }
 
+// ── Robot Stop ────────────────────────────────────────────────────────────────
+
+function _setStopBtn(visible) {
+  const btn = document.getElementById('btn-stop-robot');
+  if (!btn) return;
+  if (visible) {
+    btn.hidden = false;
+    btn.disabled = false;
+    btn.textContent = '■ Stop';
+  } else {
+    btn.hidden = true;
+    btn.disabled = true;
+  }
+}
+
+async function stopRobotRun() {
+  if (!_currentRunId) return;
+  const btn = document.getElementById('btn-stop-robot');
+  if (btn) { btn.disabled = true; btn.textContent = '停止中…'; }
+  try {
+    await API.post(`/api/robot/run/${_currentRunId}/stop`, {});
+    appendRobotLog('\n[STOP] 已送出停止訊號，等待測試收尾…\n', 'log-warn');
+  } catch (e) {
+    showToast(`停止失敗: ${e}`, 'error');
+    _setStopBtn(true);  // restore if API call failed
+  }
+}
+
 // ── Progress status helpers ───────────────────────────────────────────────────
 
 function _setProgressPhase(text) {
@@ -1153,6 +1181,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
     const badge    = document.getElementById('robot-run-id-badge');
     const badgeTxt = document.getElementById('robot-run-id-text');
     if (badge && badgeTxt) { badgeTxt.textContent = _currentRunId; badge.hidden = false; }
+    _setStopBtn(true);  // show & reset
 
     switchRobotTab('log');
     clearRobotLog();
@@ -1193,6 +1222,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
           );
           appendRobotLog('[Allure] 產生報告中…\n', 'log-info');
           _setProgressPhase('⚙ 產生 Allure 報告中...');
+          _setStopBtn(false);
           return;
         }
         if (msg.done !== undefined) {
@@ -1200,6 +1230,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
           appendRobotLog('[Allure] 報告產生完成\n', 'log-info');
           progressWrap?.classList.add('hidden');
           if (streamBtn) streamBtn.disabled = false;
+          _setStopBtn(false);
           _setRobotWsBadge('off');
           if (rc === 0) showToast('Robot 測試通過 ✓', 'success');
           else showToast(`Robot 測試失敗 (rc=${rc})`, 'error');
@@ -1219,13 +1250,27 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
         if (msg.error) { appendRobotLog(`[ERROR] ${msg.error}\n`, 'log-fail'); return; }
       } catch { /* not JSON — plain log line */ }
 
-      // Parse Robot summary line: "N tests, N passed, N failed"
-      const bare = e.data.replace(/\x1B\[[0-9;]*m/g, '');
-      const summary = bare.match(/^(\d+) tests?, (\d+) passed, (\d+) failed/);
-      if (summary) {
-        _robotPassCount = parseInt(summary[2]);
-        _robotFailCount = parseInt(summary[3]);
+      // Strip all ANSI escape sequences and trim whitespace
+      const bare = e.data.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').trim();
+
+      // 1. Real-time: count individual test results (| PASS | / | FAIL |)
+      if (/\|\s*PASS\s*\|/.test(bare)) {
+        _robotPassCount++;
         _updateProgressCounts(_robotPassCount, _robotFailCount);
+      } else if (/\|\s*FAIL\s*\|/.test(bare)) {
+        _robotFailCount++;
+        _updateProgressCounts(_robotPassCount, _robotFailCount);
+      }
+
+      // 2. Accurate count from Robot summary line — only update if total >= accumulated
+      const summary = bare.match(/(\d+) tests?, (\d+) passed, (\d+) failed/);
+      if (summary) {
+        const total = parseInt(summary[1]);
+        if (total >= _robotPassCount + _robotFailCount) {
+          _robotPassCount = parseInt(summary[2]);
+          _robotFailCount = parseInt(summary[3]);
+          _updateProgressCounts(_robotPassCount, _robotFailCount);
+        }
       }
 
       _appendColoredLog(e.data);
@@ -1235,6 +1280,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
       _setRobotWsBadge('off');
       progressWrap?.classList.add('hidden');
       if (streamBtn) streamBtn.disabled = false;
+      _setStopBtn(false);
     };
 
     _robotWs.onerror = () => {
@@ -1242,6 +1288,7 @@ async function _doStreamRun(suites, variables, includeTags, streamBtnId, testNam
       appendRobotLog('[WebSocket ERROR] 連線中斷\n', 'log-fail');
       progressWrap?.classList.add('hidden');
       if (streamBtn) streamBtn.disabled = false;
+      _setStopBtn(false);
     };
 
   } catch (e) {

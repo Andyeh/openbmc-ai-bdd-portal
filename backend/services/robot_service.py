@@ -540,6 +540,29 @@ class RobotService:
         return True, "", cmd
 
     @staticmethod
+    async def _regenerate_robot_reports(out_dir: Path) -> None:
+        """If report.html is missing (e.g. after a forced stop), regenerate it from output.xml."""
+        output_xml  = out_dir / "output.xml"
+        report_html = out_dir / "report.html"
+        if not output_xml.exists() or report_html.exists():
+            return
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "robot.rebot",
+                "--outputdir", str(out_dir),
+                "--output",   "output.xml",
+                "--log",      "log.html",
+                "--report",   "report.html",
+                "--nostatusrc",
+                str(output_xml),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=30)
+        except Exception:
+            pass  # best-effort only
+
+    @staticmethod
     async def _generate_allure_report(out_dir: Path) -> None:
         """Run `allure generate` to produce a static Allure HTML report from allure-results/."""
         allure_results = out_dir / "allure-results"
@@ -697,10 +720,11 @@ class RobotService:
             await proc.wait()
             await queue.put(None)  # sentinel — signals process stdout ended
 
-            # Generate Allure report; frontend waits for allure_done before showing reports
+            # Generate reports; frontend waits for allure_done before showing reports
             run_info = _active_runs.get(run_id)
             if run_info:
                 out_dir = Path(run_info["out_dir"])
+                await self._regenerate_robot_reports(out_dir)  # rebot if report.html missing
                 await self._generate_allure_report(out_dir)
             await queue.put({"allure_done": True})  # sentinel — signals allure complete
 

@@ -174,6 +174,28 @@ async def start_stream_run(req: StreamRunRequest):
     return {"ok": True, "run_id": run_id, "command": command}
 
 
+@router.post("/run/{run_id}/stop")
+async def stop_run(run_id: str):
+    """Send SIGTERM to a running Robot process; force-kill after 5 s if still alive."""
+    import asyncio as _asyncio
+    info = robot_service.get_run_info(run_id)
+    if not info:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
+    proc = info["process"]
+    if proc.returncode is not None:
+        raise HTTPException(status_code=409, detail=f"Run '{run_id}' has already finished")
+    proc.terminate()
+
+    async def _force_kill():
+        try:
+            await _asyncio.wait_for(proc.wait(), timeout=5.0)
+        except _asyncio.TimeoutError:
+            proc.kill()
+
+    _asyncio.create_task(_force_kill())
+    return {"ok": True, "run_id": run_id}
+
+
 @router.get("/run/{run_id}/status")
 def get_run_status(run_id: str):
     """Check if a streaming run is still active."""
