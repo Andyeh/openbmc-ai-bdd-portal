@@ -103,13 +103,13 @@ def list_images():
 
 @router.get("/presets")
 def list_presets():
-    """Return available machine presets loaded from config/qemu_presets.yaml."""
+    """Return available machine presets loaded from config/portal.yaml."""
     return {"presets": qemu_service.list_presets()}
 
 
 @router.post("/presets/reload")
 def reload_presets():
-    """Reload presets from config/qemu_presets.yaml without restarting the server."""
+    """Reload presets from config/portal.yaml without restarting the server."""
     return {"presets": qemu_service.reload_presets()}
 
 

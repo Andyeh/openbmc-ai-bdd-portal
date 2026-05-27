@@ -102,7 +102,7 @@ function applyPreset(presetId) {
   if (p.host_ipmi_port)  document.getElementById('port-ipmi').value  = p.host_ipmi_port;
 
   if (p.use_docker !== undefined) {
-    const cb = document.getElementById('use-docker');
+    const cb = document.getElementById('qemu-use-docker');
     if (cb) {
       cb.checked = p.use_docker;
       cb.dispatchEvent(new Event('change'));

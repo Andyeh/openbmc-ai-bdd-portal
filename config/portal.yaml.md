@@ -246,7 +246,65 @@ robot:
 | `qemu_image_dir` | `{openbmc_workspace}/build/{machine}/tmp/deploy/images/{machine}` |
 | `allure_results_dir` | `{robot_output_dir}/allure-results` |
 
-若需在 CI/CD 環境覆蓋這些路徑，可在 `.env` 中直接設定對應的環境變數名稱（`UPSTREAM_WORKSPACE`、`QEMU_IMAGE_DIR`、`ALLURE_RESULTS_DIR`）。
+---
+
+## 環境變數完整參考
+
+所有 `portal.yaml` 的設定皆可透過環境變數覆蓋（優先級高於 yaml），適用於 CI/CD pipeline 或多人共用機器的個人覆蓋。環境變數名稱為對應 Settings 欄位的 **UPPER_SNAKE_CASE**，設定於 `.env` 檔或 shell 環境。
+
+### Server
+
+| 環境變數 | 對應 yaml | 預設值 | 說明 |
+|---------|-----------|--------|------|
+| `APP_HOST` | `server.host` | `0.0.0.0` | 監聽 IP |
+| `APP_PORT` | `server.port` | `8080` | 監聽 port |
+| `APP_DEBUG` | `server.debug` | `true` | 開啟 debug 模式 |
+
+### OpenBMC
+
+| 環境變數 | 對應 yaml | 預設值 | 說明 |
+|---------|-----------|--------|------|
+| `OPENBMC_WORKSPACE` | `openbmc.workspace` | `/home/user/workspace/openbmc` | OpenBMC build root |
+| `MACHINE` | `openbmc.machine` | `ast2700-default` | 目標機型 |
+| `ROBOT_SCRIPT_DIR` | `openbmc.robot_script_dir` | `/path/to/openbmc-test-automation` | Robot 測試腳本目錄 |
+
+### QEMU
+
+| 環境變數 | 對應 yaml | 預設值 | 說明 |
+|---------|-----------|--------|------|
+| `QEMU_RUN_TIMER` | `qemu.run_timer` | `3600` | QEMU 最長執行秒數 |
+| `QEMU_LOGIN_TIMER` | `qemu.login_timer` | `180` | 等待登入逾時（秒）|
+| `QEMU_BOOT_TIMEOUT` | `qemu.boot_timeout` | `300` | 等待開機逾時（秒）|
+| `QEMU_DEFAULT_MEMORY` | `qemu.default_memory` | `1G` | 預設記憶體大小 |
+| `QEMU_TEMP_IMAGE_DIR` | `qemu.temp_image_dir` | `/tmp` | 暫存 image 目錄 |
+
+### Docker
+
+| 環境變數 | 對應 yaml | 預設值 | 說明 |
+|---------|-----------|--------|------|
+| `DOCKER_IMG_NAME` | `docker.image` | `openbmc/ast2700-robot-qemu:your-tag` | QEMU Docker image |
+| `DOCKER_SOCKET` | `docker.socket` | `/var/run/docker.sock` | Docker socket 路徑 |
+| `OBMC_BUILD_DIR` | `docker.build_dir` | `/tmp/openbmc/build` | 容器內 build 目錄掛載點 |
+| `DOCKER_RUNNER_IMAGE` | `docker.runner_image` | `crops/poky:ubuntu-22.04` | Robot 執行用 Docker image |
+| `DOCKER_CONTAINER_NAME` | `docker.container_name` | `qemu-portal-session` | QEMU 容器名稱 |
+
+### Robot Framework
+
+| 環境變數 | 對應 yaml | 預設值 | 說明 |
+|---------|-----------|--------|------|
+| `ROBOT_OUTPUT_DIR` | `robot.output_dir` | `tests/bdd/reports` | 測試報告輸出根目錄 |
+| `ROBOT_LOG_LEVEL` | `robot.log_level` | `INFO` | Robot `--loglevel` 參數值 |
+| `ROBOT_RUN_TIMEOUT` | `robot.run_timeout` | `600` | Robot run 最長逾時（秒）|
+| `ROBOT_ALLURE_TIMEOUT` | `robot.allure_timeout` | `120` | `allure generate` 逾時（秒）|
+| `ROBOT_CLEANUP_GRACE_PERIOD` | `robot.cleanup_grace_period` | `300` | WebSocket log stream 保留時間（秒）|
+
+### 衍生路徑（可直接覆蓋）
+
+| 環境變數 | 預設計算方式 | 說明 |
+|---------|------------|------|
+| `UPSTREAM_WORKSPACE` | `{openbmc_workspace}/build/{machine}` | OpenBMC upstream build 目錄 |
+| `QEMU_IMAGE_DIR` | `{openbmc_workspace}/build/{machine}/tmp/deploy/images/{machine}` | QEMU image 搜尋目錄 |
+| `ALLURE_RESULTS_DIR` | `{robot_output_dir}/allure-results` | Allure 原始結果目錄 |
 
 ---
 
