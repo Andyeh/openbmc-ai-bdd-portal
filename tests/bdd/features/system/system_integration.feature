@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 Feature: System Integration & Exception Handling
   As a portal user or developer
   I want the system to handle errors gracefully and maintain a responsive UI

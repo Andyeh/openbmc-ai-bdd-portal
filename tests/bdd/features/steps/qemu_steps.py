@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 BDD Step Definitions — QEMU Runner
 Covers: preset fill-in, command builder API, launch/stop lifecycle, WebSocket.

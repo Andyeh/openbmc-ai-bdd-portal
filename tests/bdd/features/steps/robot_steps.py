@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 BDD Step Definitions — Robot Framework Executor
 Covers: tree scanning, batch execution, dry-run, WebSocket streaming, security rejection.

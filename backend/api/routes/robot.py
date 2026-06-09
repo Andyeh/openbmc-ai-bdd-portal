@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 Robot Framework API Router — tree scan, safe batch execution, WebSocket log streaming.
 """

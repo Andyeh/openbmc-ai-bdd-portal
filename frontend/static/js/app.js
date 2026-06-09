@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Andy Yeh — SPDX-License-Identifier: Apache-2.0
 /**
  * OpenBMC AI-BDD Portal — Frontend Application Logic
  * v3: Tab-based page navigation, CI preset suites, categorized test browser.

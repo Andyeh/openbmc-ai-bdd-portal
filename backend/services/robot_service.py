@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 Robot Framework Service — directory tree scanning, safe execution, and async log streaming.
 

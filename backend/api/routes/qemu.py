@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 QEMU API Router — full launch lifecycle with structured JSON params.
 """

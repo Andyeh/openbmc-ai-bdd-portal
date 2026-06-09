@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 # Feature: Portal Architecture
 # ────────────────────────────────────────────────────────────────────────────
 # BDD specification for the OpenBMC AI-BDD Portal's foundational UI layout.

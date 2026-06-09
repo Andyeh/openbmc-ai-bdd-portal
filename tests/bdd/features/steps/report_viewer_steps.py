@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 BDD Step Definitions — 測試報告整合模組 (report_viewer.feature)
 

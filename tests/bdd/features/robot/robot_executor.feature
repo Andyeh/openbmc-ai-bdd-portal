@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 Feature: Robot Framework 解析與調度模組
   作為 OpenBMC 測試工程師
   我希望能透過 Portal 瀏覽、篩選並執行 openbmc-test-automation 中的 Robot 腳本

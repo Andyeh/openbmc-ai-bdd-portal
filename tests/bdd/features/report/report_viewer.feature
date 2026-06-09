@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 Feature: 測試報告整合模組 (Robot + Allure)
   作為一位測試工程師
   我希望在測試執行完畢後能在 Portal 查看 Robot 原生報告與 Allure 視覺化報告

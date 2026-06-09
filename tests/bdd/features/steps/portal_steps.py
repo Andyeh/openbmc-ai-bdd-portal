@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Andy Yeh
+# SPDX-License-Identifier: Apache-2.0
 """
 BDD Step Definitions — Portal Architecture
 Covers: page load, panel presence, API endpoints, responsive layout.
