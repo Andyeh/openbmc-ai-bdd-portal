@@ -238,3 +238,7 @@ allure serve tests/bdd/reports/allure-results
 2. 提交變更：`git commit -m 'Add some AmazingFeature'`
 3. 推送分支：`git push origin feature/AmazingFeature`
 4. 發起 Pull Request
+
+## License
+
+Copyright (c) 2026 Andy Yeh. Licensed under the [Apache License 2.0](LICENSE).
