@@ -1,3 +1,4 @@
+<!-- Copyright (c) 2026 Andy Yeh — SPDX-License-Identifier: Apache-2.0 -->
 # config/portal.yaml 參數說明
 
 這是 OpenBMC AI-BDD Portal 的**唯一主設定檔**。所有服務行為、路徑、計時器、QEMU preset 均在此集中設定。
