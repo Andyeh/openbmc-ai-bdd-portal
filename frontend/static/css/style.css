@@ -464,12 +464,17 @@ label {
   animation: spin 0.75s linear infinite;
 }
 
+/* ── Report Panel ───────────────────────────────────────────────── */
+#report-panel .panel-body {
+  min-height: 660px;
+}
+
 /* ── Report List ────────────────────────────────────────────────── */
 .report-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  max-height: 480px;
+  max-height: 600px;
   overflow-y: auto;
 }
 
