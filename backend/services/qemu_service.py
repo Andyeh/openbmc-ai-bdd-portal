@@ -81,11 +81,12 @@ PRESETS: dict[str, dict] = _load_presets()
 
 # ── Symlink-preferred image names (no date tag) ──────────────────────────────
 
-# These symlinks are maintained by bitbake and always point to the latest build.
-_PREFERRED_SYMLINKS = {
-    "obmc-phosphor-image-ast2700-default.static.mtd",
-    "obmc-phosphor-image-romulus.static.mtd",
-}
+# Derived from portal.yaml qemu.presets[*].image — no hard-coding needed.
+def _build_preferred_symlinks() -> set[str]:
+    return {v["image"] for v in PRESETS.values() if v.get("image")}
+
+
+_PREFERRED_SYMLINKS: set[str] = _build_preferred_symlinks()
 
 
 # ── Session dataclass ─────────────────────────────────────────────────────────
@@ -211,8 +212,9 @@ class QemuService:
 
     def reload_presets(self) -> list[dict]:
         """Reload presets from config/portal.yaml without restarting."""
-        global PRESETS
+        global PRESETS, _PREFERRED_SYMLINKS
         PRESETS = _load_presets()
+        _PREFERRED_SYMLINKS = _build_preferred_symlinks()
         return self.list_presets()
 
     def list_machines(self) -> list[dict]:

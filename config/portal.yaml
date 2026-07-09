@@ -57,6 +57,13 @@ qemu:
       image:            "obmc-phosphor-image-ast2700-default.static.mtd"
       extra_args:       "-serial mon:stdio -serial null -display none"
 
+    ast2700-dcscm:
+      label:            "ast2700-dcscm (aarch64)"
+      machine:          "ast2700a1-evb"
+      binary_rel_path:  "tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64"
+      image:            "flash_128mb.mtd"
+      extra_args:       "-serial mon:stdio -serial null -display none"
+
     romulus:
       label:            "romulus (arm)"
       machine:          "romulus-bmc"
